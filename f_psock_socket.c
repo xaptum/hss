@@ -1,7 +1,7 @@
 /**
- *
- *
- *
+ * @file f_psock_socket.c
+ * @brief Socket handling from kernel space for the xaptum host driver
+ * @author Jeroen Z
  */
 
 #include <linux/net.h>
@@ -20,3 +20,4 @@ static int f_psock_socket_create( void )
 	
 	return 0;
 }
+
