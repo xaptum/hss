@@ -1,6 +1,6 @@
 /**
- * @file f_psock.c
- * @brief 
+ * @file f_psock_main.c
+ * @brief Main for the psock kernel module 
  * @author Jeroen Z
  */
 
@@ -25,7 +25,6 @@ static void __exit f_psock_exit(void)
 {
 	printk( KERN_INFO "f_psock Exit\n" );
 }
-
 
 module_init( f_psock_init );
 module_exit( f_psock_exit );
