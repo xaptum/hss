@@ -33,7 +33,7 @@ MODULE_DEVICE_TABLE(usb, xarpcd_table);
 /* arbitrarily chosen */
 
 /* Structure to hold all of our device specific stuff */
-struct usb_psock {
+struct usb_xarpcd {
 	struct usb_device	*udev;			/* the usb device for this device */
 	struct usb_interface	*interface;		/* the interface for this device */
 	struct semaphore	limit_sem;		/* limiting the number of writes in progress */
@@ -52,14 +52,14 @@ struct usb_psock {
 	struct mutex		io_mutex;		/* synchronize I/O with disconnect */
 	wait_queue_head_t	bulk_in_wait;		/* to wait for an ongoing read */
 };
-#define to_xarpcd_dev(d) container_of(d, struct usb_psock, kref)
+#define to_xarpcd_dev(d) container_of(d, struct usb_xarpcd, kref)
 
 static struct usb_driver xarpcd_driver;
-static void xarpcd_draw_down(struct usb_psock *dev);
+static void xarpcd_draw_down(struct usb_xarpcd *dev);
 
 static void xarpcd_delete(struct kref *kref)
 {
-	struct usb_psock *dev = to_xarpcd_dev(kref);
+	struct usb_xarpcd *dev = to_xarpcd_dev(kref);
 
 	usb_free_urb(dev->bulk_in_urb);
 	usb_put_dev(dev->udev);
@@ -69,7 +69,7 @@ static void xarpcd_delete(struct kref *kref)
 
 static int xarpcd_open(struct inode *inode, struct file *file)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	struct usb_interface *interface;
 	int subminor;
 	int retval = 0;
@@ -106,7 +106,7 @@ exit:
 
 static int xarpcd_release(struct inode *inode, struct file *file)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 
 	dev = file->private_data;
 	if (dev == NULL)
@@ -125,7 +125,7 @@ static int xarpcd_release(struct inode *inode, struct file *file)
 
 static int xarpcd_flush(struct file *file, fl_owner_t id)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	int res;
 
 	dev = file->private_data;
@@ -149,7 +149,7 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 
 static void xarpcd_read_bulk_callback(struct urb *urb)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 
 	dev = urb->context;
 
@@ -173,7 +173,7 @@ static void xarpcd_read_bulk_callback(struct urb *urb)
 	wake_up_interruptible(&dev->bulk_in_wait);
 }
 
-static int xarpcd_do_read_io(struct usb_psock *dev, size_t count)
+static int xarpcd_do_read_io(struct usb_xarpcd *dev, size_t count)
 {
 	int rv;
 
@@ -213,7 +213,7 @@ static int xarpcd_do_read_io(struct usb_psock *dev, size_t count)
 static ssize_t xarpcd_read(struct file *file, char *buffer, size_t count,
 			 loff_t *ppos)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	int rv;
 	bool ongoing_io;
 
@@ -321,7 +321,7 @@ exit:
 
 static void xarpcd_write_bulk_callback(struct urb *urb)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 
 	dev = urb->context;
 
@@ -348,7 +348,7 @@ static void xarpcd_write_bulk_callback(struct urb *urb)
 static ssize_t xarpcd_write(struct file *file, const char *user_buffer,
 			  size_t count, loff_t *ppos)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	int retval = 0;
 	struct urb *urb = NULL;
 	char *buf = NULL;
@@ -469,7 +469,7 @@ static const struct file_operations xarpcd_fops = {
  * and to have the device registered with the driver core
  */
 static struct usb_class_driver xarpcd_class = {
-	.name =		"psock%d",
+	.name =		"xarpcd%d",
 	.fops =		&xarpcd_fops,
 	.minor_base =	USB_PSOCK_MINOR_BASE,
 };
@@ -477,7 +477,7 @@ static struct usb_class_driver xarpcd_class = {
 static int xarpcd_probe(struct usb_interface *interface,
 		      const struct usb_device_id *id)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
 
@@ -549,7 +549,7 @@ error:
 
 static void xarpcd_disconnect(struct usb_interface *interface)
 {
-	struct usb_psock *dev;
+	struct usb_xarpcd *dev;
 	int minor = interface->minor;
 
 	dev = usb_get_intfdata(interface);
@@ -571,7 +571,7 @@ static void xarpcd_disconnect(struct usb_interface *interface)
 	dev_info(&interface->dev, "USB Skeleton #%d now disconnected", minor);
 }
 
-static void xarpcd_draw_down(struct usb_psock *dev)
+static void xarpcd_draw_down(struct usb_xarpcd *dev)
 {
 	int time;
 
@@ -583,7 +583,7 @@ static void xarpcd_draw_down(struct usb_psock *dev)
 
 static int xarpcd_suspend(struct usb_interface *intf, pm_message_t message)
 {
-	struct usb_psock *dev = usb_get_intfdata(intf);
+	struct usb_xarpcd *dev = usb_get_intfdata(intf);
 
 	if (!dev)
 		return 0;
@@ -598,7 +598,7 @@ static int xarpcd_resume(struct usb_interface *intf)
 
 static int xarpcd_pre_reset(struct usb_interface *intf)
 {
-	struct usb_psock *dev = usb_get_intfdata(intf);
+	struct usb_xarpcd *dev = usb_get_intfdata(intf);
 
 	mutex_lock(&dev->io_mutex);
 	xarpcd_draw_down(dev);
@@ -608,7 +608,7 @@ static int xarpcd_pre_reset(struct usb_interface *intf)
 
 static int xarpcd_post_reset(struct usb_interface *intf)
 {
-	struct usb_psock *dev = usb_get_intfdata(intf);
+	struct usb_xarpcd *dev = usb_get_intfdata(intf);
 
 	/* we are sure no URBs are active - no locking needed */
 	dev->errors = -EPIPE;
@@ -618,7 +618,7 @@ static int xarpcd_post_reset(struct usb_interface *intf)
 }
 
 static struct usb_driver xarpcd_driver = {
-	.name =		"psock",
+	.name =		"xarpcd",
 	.probe =	xarpcd_probe,
 	.disconnect =	xarpcd_disconnect,
 	.suspend =	xarpcd_suspend,
