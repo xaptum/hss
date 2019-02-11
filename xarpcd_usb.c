@@ -52,14 +52,14 @@ struct usb_psock {
 	struct mutex		io_mutex;		/* synchronize I/O with disconnect */
 	wait_queue_head_t	bulk_in_wait;		/* to wait for an ongoing read */
 };
-#define to_psock_dev(d) container_of(d, struct usb_psock, kref)
+#define to_xarpcd_dev(d) container_of(d, struct usb_psock, kref)
 
-static struct usb_driver psock_driver;
-static void psock_draw_down(struct usb_psock *dev);
+static struct usb_driver xarpcd_driver;
+static void xarpcd_draw_down(struct usb_psock *dev);
 
-static void psock_delete(struct kref *kref)
+static void xarpcd_delete(struct kref *kref)
 {
-	struct usb_psock *dev = to_psock_dev(kref);
+	struct usb_psock *dev = to_xarpcd_dev(kref);
 
 	usb_free_urb(dev->bulk_in_urb);
 	usb_put_dev(dev->udev);
@@ -67,7 +67,7 @@ static void psock_delete(struct kref *kref)
 	kfree(dev);
 }
 
-static int psock_open(struct inode *inode, struct file *file)
+static int xarpcd_open(struct inode *inode, struct file *file)
 {
 	struct usb_psock *dev;
 	struct usb_interface *interface;
@@ -76,7 +76,7 @@ static int psock_open(struct inode *inode, struct file *file)
 
 	subminor = iminor(inode);
 
-	interface = usb_find_interface(&psock_driver, subminor);
+	interface = usb_find_interface(&xarpcd_driver, subminor);
 	if (!interface) {
 		pr_err("%s - error, can't find device for minor %d\n",
 			__func__, subminor);
@@ -104,7 +104,7 @@ exit:
 	return retval;
 }
 
-static int psock_release(struct inode *inode, struct file *file)
+static int xarpcd_release(struct inode *inode, struct file *file)
 {
 	struct usb_psock *dev;
 
@@ -119,11 +119,11 @@ static int psock_release(struct inode *inode, struct file *file)
 	mutex_unlock(&dev->io_mutex);
 
 	/* decrement the count on our device */
-	kref_put(&dev->kref, psock_delete);
+	kref_put(&dev->kref, xarpcd_delete);
 	return 0;
 }
 
-static int psock_flush(struct file *file, fl_owner_t id)
+static int xarpcd_flush(struct file *file, fl_owner_t id)
 {
 	struct usb_psock *dev;
 	int res;
@@ -134,7 +134,7 @@ static int psock_flush(struct file *file, fl_owner_t id)
 
 	/* wait for io to stop */
 	mutex_lock(&dev->io_mutex);
-	psock_draw_down(dev);
+	xarpcd_draw_down(dev);
 
 	/* read out errors, leave subsequent opens a clean slate */
 	spin_lock_irq(&dev->err_lock);
@@ -147,7 +147,7 @@ static int psock_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
-static void psock_read_bulk_callback(struct urb *urb)
+static void xarpcd_read_bulk_callback(struct urb *urb)
 {
 	struct usb_psock *dev;
 
@@ -173,7 +173,7 @@ static void psock_read_bulk_callback(struct urb *urb)
 	wake_up_interruptible(&dev->bulk_in_wait);
 }
 
-static int psock_do_read_io(struct usb_psock *dev, size_t count)
+static int xarpcd_do_read_io(struct usb_psock *dev, size_t count)
 {
 	int rv;
 
@@ -184,7 +184,7 @@ static int psock_do_read_io(struct usb_psock *dev, size_t count)
 				dev->bulk_in_endpointAddr),
 			dev->bulk_in_buffer,
 			min(dev->bulk_in_size, count),
-			psock_read_bulk_callback,
+			xarpcd_read_bulk_callback,
 			dev);
 	/* tell everybody to leave the URB alone */
 	spin_lock_irq(&dev->err_lock);
@@ -210,7 +210,7 @@ static int psock_do_read_io(struct usb_psock *dev, size_t count)
 	return rv;
 }
 
-static ssize_t psock_read(struct file *file, char *buffer, size_t count,
+static ssize_t xarpcd_read(struct file *file, char *buffer, size_t count,
 			 loff_t *ppos)
 {
 	struct usb_psock *dev;
@@ -280,7 +280,7 @@ retry:
 			 * all data has been used
 			 * actual IO needs to be done
 			 */
-			rv = psock_do_read_io(dev, count);
+			rv = xarpcd_do_read_io(dev, count);
 			if (rv < 0)
 				goto exit;
 			else
@@ -305,10 +305,10 @@ retry:
 		 * we start IO but don't wait
 		 */
 		if (available < count)
-			psock_do_read_io(dev, count - chunk);
+			xarpcd_do_read_io(dev, count - chunk);
 	} else {
 		/* no data in the buffer */
-		rv = psock_do_read_io(dev, count);
+		rv = xarpcd_do_read_io(dev, count);
 		if (rv < 0)
 			goto exit;
 		else
@@ -319,7 +319,7 @@ exit:
 	return rv;
 }
 
-static void psock_write_bulk_callback(struct urb *urb)
+static void xarpcd_write_bulk_callback(struct urb *urb)
 {
 	struct usb_psock *dev;
 
@@ -345,7 +345,7 @@ static void psock_write_bulk_callback(struct urb *urb)
 	up(&dev->limit_sem);
 }
 
-static ssize_t psock_write(struct file *file, const char *user_buffer,
+static ssize_t xarpcd_write(struct file *file, const char *user_buffer,
 			  size_t count, loff_t *ppos)
 {
 	struct usb_psock *dev;
@@ -418,7 +418,7 @@ static ssize_t psock_write(struct file *file, const char *user_buffer,
 	/* initialize the urb properly */
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
-			  buf, writesize, psock_write_bulk_callback, dev);
+			  buf, writesize, xarpcd_write_bulk_callback, dev);
 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_anchor_urb(urb, &dev->submitted);
 
@@ -454,13 +454,13 @@ exit:
 	return retval;
 }
 
-static const struct file_operations psock_fops = {
+static const struct file_operations xarpcd_fops = {
 	.owner =	THIS_MODULE,
-	.read =		psock_read,
-	.write =	psock_write,
-	.open =		psock_open,
-	.release =	psock_release,
-	.flush =	psock_flush,
+	.read =		xarpcd_read,
+	.write =	xarpcd_write,
+	.open =		xarpcd_open,
+	.release =	xarpcd_release,
+	.flush =	xarpcd_flush,
 	.llseek =	noop_llseek,
 };
 
@@ -468,13 +468,13 @@ static const struct file_operations psock_fops = {
  * usb class driver info in order to get a minor number from the usb core,
  * and to have the device registered with the driver core
  */
-static struct usb_class_driver psock_class = {
+static struct usb_class_driver xarpcd_class = {
 	.name =		"psock%d",
-	.fops =		&psock_fops,
+	.fops =		&xarpcd_fops,
 	.minor_base =	USB_PSOCK_MINOR_BASE,
 };
 
-static int psock_probe(struct usb_interface *interface,
+static int xarpcd_probe(struct usb_interface *interface,
 		      const struct usb_device_id *id)
 {
 	struct usb_psock *dev;
@@ -525,7 +525,7 @@ static int psock_probe(struct usb_interface *interface,
 	usb_set_intfdata(interface, dev);
 
 	/* we can register the device now, as it is ready */
-	retval = usb_register_dev(interface, &psock_class);
+	retval = usb_register_dev(interface, &xarpcd_class);
 	if (retval) {
 		/* something prevented us from registering this driver */
 		dev_err(&interface->dev,
@@ -542,12 +542,12 @@ static int psock_probe(struct usb_interface *interface,
 
 error:
 	/* this frees allocated memory */
-	kref_put(&dev->kref, psock_delete);
+	kref_put(&dev->kref, xarpcd_delete);
 
 	return retval;
 }
 
-static void psock_disconnect(struct usb_interface *interface)
+static void xarpcd_disconnect(struct usb_interface *interface)
 {
 	struct usb_psock *dev;
 	int minor = interface->minor;
@@ -556,7 +556,7 @@ static void psock_disconnect(struct usb_interface *interface)
 	usb_set_intfdata(interface, NULL);
 
 	/* give back our minor */
-	usb_deregister_dev(interface, &psock_class);
+	usb_deregister_dev(interface, &xarpcd_class);
 
 	/* prevent more I/O from starting */
 	mutex_lock(&dev->io_mutex);
@@ -566,12 +566,12 @@ static void psock_disconnect(struct usb_interface *interface)
 	usb_kill_anchored_urbs(&dev->submitted);
 
 	/* decrement our usage count */
-	kref_put(&dev->kref, psock_delete);
+	kref_put(&dev->kref, xarpcd_delete);
 
 	dev_info(&interface->dev, "USB Skeleton #%d now disconnected", minor);
 }
 
-static void psock_draw_down(struct usb_psock *dev)
+static void xarpcd_draw_down(struct usb_psock *dev)
 {
 	int time;
 
@@ -581,32 +581,32 @@ static void psock_draw_down(struct usb_psock *dev)
 	usb_kill_urb(dev->bulk_in_urb);
 }
 
-static int psock_suspend(struct usb_interface *intf, pm_message_t message)
+static int xarpcd_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	struct usb_psock *dev = usb_get_intfdata(intf);
 
 	if (!dev)
 		return 0;
-	psock_draw_down(dev);
+	xarpcd_draw_down(dev);
 	return 0;
 }
 
-static int psock_resume(struct usb_interface *intf)
+static int xarpcd_resume(struct usb_interface *intf)
 {
 	return 0;
 }
 
-static int psock_pre_reset(struct usb_interface *intf)
+static int xarpcd_pre_reset(struct usb_interface *intf)
 {
 	struct usb_psock *dev = usb_get_intfdata(intf);
 
 	mutex_lock(&dev->io_mutex);
-	psock_draw_down(dev);
+	xarpcd_draw_down(dev);
 
 	return 0;
 }
 
-static int psock_post_reset(struct usb_interface *intf)
+static int xarpcd_post_reset(struct usb_interface *intf)
 {
 	struct usb_psock *dev = usb_get_intfdata(intf);
 
@@ -617,18 +617,18 @@ static int psock_post_reset(struct usb_interface *intf)
 	return 0;
 }
 
-static struct usb_driver psock_driver = {
+static struct usb_driver xarpcd_driver = {
 	.name =		"psock",
-	.probe =	psock_probe,
-	.disconnect =	psock_disconnect,
-	.suspend =	psock_suspend,
-	.resume =	psock_resume,
-	.pre_reset =	psock_pre_reset,
-	.post_reset =	psock_post_reset,
+	.probe =	xarpcd_probe,
+	.disconnect =	xarpcd_disconnect,
+	.suspend =	xarpcd_suspend,
+	.resume =	xarpcd_resume,
+	.pre_reset =	xarpcd_pre_reset,
+	.post_reset =	xarpcd_post_reset,
 	.id_table =	xarpcd_table,
 	.supports_autosuspend = 1,
 };
 
-//module_usb_driver(psock_driver);
+//module_usb_driver(xarpcd_driver);
 
 MODULE_LICENSE("GPL v2");
