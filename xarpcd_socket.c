@@ -1,5 +1,5 @@
 /**
- * @file f_psock_socket.c
+ * @file xarpcd_socket.c
  * @brief Socket handling from kernel space for the xaptum host driver
  * @author Jeroen Z
  */
@@ -11,7 +11,7 @@
 
 
 
-static int f_psock_socket_create( void )
+static int xarpcd_socket_create( void )
 {
 	int r;
 	struct socket *control = NULL;

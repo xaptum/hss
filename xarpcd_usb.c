@@ -14,11 +14,11 @@
 #define USB_PRODUCT_ID	0xfff0
 
 /* table of devices that work with this driver */
-static const struct usb_device_id f_psock_table[] = {
+static const struct usb_device_id xarpcd_table[] = {
 	{ USB_DEVICE(USB_VENDOR_ID, USB_PRODUCT_ID) },
 	{ }					/* Terminating entry */
 };
-MODULE_DEVICE_TABLE(usb, f_psock_table);
+MODULE_DEVICE_TABLE(usb, xarpcd_table);
 
 
 /* Get a minor range for your devices from the usb maintainer */
@@ -625,7 +625,7 @@ static struct usb_driver psock_driver = {
 	.resume =	psock_resume,
 	.pre_reset =	psock_pre_reset,
 	.post_reset =	psock_post_reset,
-	.id_table =	f_psock_table,
+	.id_table =	xarpcd_table,
 	.supports_autosuspend = 1,
 };
 

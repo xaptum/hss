@@ -1,5 +1,5 @@
 /**
- * @file f_psock_main.c
+ * @file xarpcd_main.c
  * @brief Main for the psock kernel module 
  * @author Jeroen Z
  */
@@ -15,17 +15,17 @@ MODULE_DESCRIPTION("Xaptum tcp-proxy host kernel module");
 MODULE_VERSION("0.0.1");
 
 
-static int __init f_psock_init(void)
+static int __init xarpcd_init(void)
 {
-	printk( KERN_INFO "f_psock Init\n" );
+	printk( KERN_INFO "xarpcd Init\n" );
 	return 0;
 }
 
-static void __exit f_psock_exit(void)
+static void __exit xarpcd_exit(void)
 {
-	printk( KERN_INFO "f_psock Exit\n" );
+	printk( KERN_INFO "xarpcd Exit\n" );
 }
 
-module_init( f_psock_init );
-module_exit( f_psock_exit );
+module_init( xarpcd_init );
+module_exit( xarpcd_exit );
 
