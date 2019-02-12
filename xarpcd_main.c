@@ -26,6 +26,6 @@ static void __exit xarpcd_exit(void)
 	printk( KERN_INFO "xarpcd Exit\n" );
 }
 
-module_init( xarpcd_init );
-module_exit( xarpcd_exit );
+//module_init( xarpcd_init );
+//module_exit( xarpcd_exit );
 

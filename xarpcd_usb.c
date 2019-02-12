@@ -14,8 +14,8 @@
 
 
 /* Define these values to match your devices */
-#define USB_VENDOR_ID	0xfff0
-#define USB_PRODUCT_ID	0xfff0
+#define USB_VENDOR_ID	0xaaaa
+#define USB_PRODUCT_ID	0xbbbb
 
 /* table of devices that work with this driver */
 static const struct usb_device_id xarpcd_table[] = {
@@ -77,6 +77,8 @@ static int xarpcd_open(struct inode *inode, struct file *file)
 	struct usb_interface *interface;
 	int subminor;
 	int retval = 0;
+
+	printk("Device open called\n" );
 
 	subminor = iminor(inode);
 
@@ -485,6 +487,8 @@ static int xarpcd_probe(struct usb_interface *interface,
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
 
+	printk( "Probing for device\n");
+
 	/* allocate memory for our device state and initialize it */
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -633,6 +637,6 @@ static struct usb_driver xarpcd_driver = {
 	.supports_autosuspend = 1,
 };
 
-//module_usb_driver(xarpcd_driver);
+module_usb_driver(xarpcd_driver);
 
 MODULE_LICENSE("GPL v2");
