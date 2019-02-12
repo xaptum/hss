@@ -1,4 +1,4 @@
-#include "../../common/f_psock_proxy_msg.h"
+#include "../../common/psock_proxy_msg.h"
 
 int xarpcd_proxy_init( void )
 {
