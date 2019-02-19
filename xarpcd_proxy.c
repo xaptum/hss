@@ -1,5 +1,5 @@
 /**
- *
+ * Proxy part for the xarpcd kernel module
  */
 
 #include "../../common/psock_proxy_msg.h"
