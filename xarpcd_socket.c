@@ -10,7 +10,9 @@
 #include <net/sock.h>
 
 
-
+/**
+ * Create a socket
+ */
 static int xarpcd_socket_create( void )
 {
 	int r;
@@ -18,6 +20,37 @@ static int xarpcd_socket_create( void )
 
 	r = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
 	
-	return 0;
+	return r;
 }
 
+/**
+ * Connect socket
+ */
+static int xarpcd_socket_connect( struct socket* sock , struct sockaddr * addr, int addrlen)
+{
+	return kernel_connect( sock, addr, addrlen, 0 ); 
+}
+
+/**
+ * Write to socket
+ */
+static int xarpcd_socket_write( struct socket * sock, struct msghdr *msg )
+{
+	return sock_sendmsg( sock, msg );
+}
+
+/**
+ * Read from socket
+ */
+static int xarpcd_socket_read( struct socket * sock, struct msghdr *msg )
+{
+	return sock_recvmsg( sock, msg , 0);
+}
+
+/**
+ * Close the socket
+ */
+static int xarpcd_socket_close( struct socket *sock )
+{
+	sock_release( sock );
+}
