@@ -12,6 +12,7 @@
 #include <linux/usb.h>
 #include <linux/mutex.h>
 
+#include "../../common/psock_proxy_msg.h"
 
 /* Define these values to match your devices */
 #define USB_VENDOR_ID	0xaaaa
@@ -59,6 +60,7 @@ struct usb_xarpcd {
 #define to_xarpcd_dev(d) container_of(d, struct usb_xarpcd, kref)
 
 static struct usb_driver xarpcd_driver;
+static struct usb_xarpcd *xpt_dev = NULL;
 static void xarpcd_draw_down(struct usb_xarpcd *dev);
 
 static void xarpcd_delete(struct kref *kref)
@@ -153,9 +155,32 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
+static void xarpcd_read_msg_callback( struct urb *urb )
+{
+	// Finished reading msg
+	struct psock_proxy_msg *msg = (struct psock_proxy_msg *) xpt_dev->bulk_in_buffer;
+	printk ( "Got a proxy msg\n" );
+	if ( msg->type == F_PSOCK_MSG_NONE )
+	{
+		printk( "F_PSOCK_NONE_MSG received\n" );
+		if ( msg->length == sizeof(struct psock_proxy_msg ) )
+		{
+			printk("Correct length received\n" );
+		}
+	}
+	else if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
+	{
+		printk( "F_PSOCK_MSG_ACTION_REQUEST\n" );
+	}
+
+
+		
+}
 static void xarpcd_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xarpcd *dev;
+
+	printk( "BULK READ CALLED\n" );
 
 	dev = urb->context;
 
@@ -177,6 +202,24 @@ static void xarpcd_read_bulk_callback(struct urb *urb)
 	spin_unlock(&dev->err_lock);
 
 	wake_up_interruptible(&dev->bulk_in_wait);
+}
+
+static int xarpcd_read_msg( void **msg )
+{
+	struct usb_xarpcd *dev = xpt_dev;
+	
+       	usb_fill_bulk_urb(dev->bulk_in_urb,
+                        dev->udev,
+                        usb_rcvbulkpipe(dev->udev,
+                                dev->bulk_in_endpointAddr),
+                        dev->bulk_in_buffer,
+                        sizeof( struct psock_proxy_msg ),
+                        xarpcd_read_msg_callback,
+                        dev);
+	usb_submit_urb(dev->bulk_in_urb, GFP_KERNEL);
+
+	return 0;
+
 }
 
 static int xarpcd_do_read_io(struct usb_xarpcd *dev, size_t count)
@@ -494,6 +537,7 @@ static int xarpcd_probe(struct usb_interface *interface,
 	if (!dev)
 		return -ENOMEM;
 
+	xpt_dev = dev;
 	kref_init(&dev->kref);
 	sema_init(&dev->limit_sem, WRITES_IN_FLIGHT);
 	mutex_init(&dev->io_mutex);
@@ -546,6 +590,9 @@ static int xarpcd_probe(struct usb_interface *interface,
 	dev_info(&interface->dev,
 		 "USB Skeleton device now attached to USBSkel-%d",
 		 interface->minor);
+
+	xarpcd_read_msg( NULL);
+
 	return 0;
 
 error:
