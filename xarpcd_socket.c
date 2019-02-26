@@ -13,12 +13,11 @@
 /**
  * Create a socket
  */
-static int xarpcd_socket_create( void )
+static int xarpcd_socket_create( struct socket **sock )
 {
 	int r;
-	struct socket *control = NULL;
 
-	r = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, &control);
+	r = sock_create(PF_INET, SOCK_STREAM, IPPROTO_TCP, sock);
 	
 	return r;
 }
