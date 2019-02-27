@@ -161,9 +161,44 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
-static void xarpcd_handle_complete_msg( void *msg )
+static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 {
 	printk( "Got a complete msg handling it\n" );
+	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
+	{
+
+		switch ( msg->action )
+		{
+			case F_PSOCK_CREATE:
+				// We want to create a socket
+				break;
+			case F_PSOCK_CONNECT :
+				// We want to connect
+				break;
+			case F_PSOCK_READ :
+				// We want to read
+				break;
+			case F_PSOCK_WRITE :
+				// We want to write
+				break;
+			case F_PSOCK_CLOSE :
+				// We want to close the socket
+				break;
+
+			default :
+				break;
+		}
+
+	}
+	else if ( msg->type == F_PSOCK_MSG_ACTION_REPLY  )
+	{
+		// Got an action reply
+	}
+	else if ( msg->type == F_PSOCK_MSG_NONE )
+	{
+		printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
+	}
+
 }
 
 /**

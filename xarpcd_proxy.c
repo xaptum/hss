@@ -70,7 +70,7 @@ int xparcd_proxy_cleanup( void )
 }
 
 /****************************************************************************
- * Api towards the usb handling code
+ * Api towards the socket handling code
  ***************************************************************************/
 
 int xarpcd_proxy_pop_in_msg( void **msg )
@@ -112,7 +112,7 @@ int xarpcd_proxy_push_out_msg( void *msg)
 
 
 /***************************************************************************
- * Api towards the socket handling code
+ * Api towards the usb handling code
  ***************************************************************************/
 
 int xarpcd_proxy_pop_out_msg( void **msg )
