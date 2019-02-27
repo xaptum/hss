@@ -1,6 +1,7 @@
 /**
- * @file
- * @brief
+ * @file xarpcd_usb.c
+ * @brief Implementation of the usb driver part for the xaptum tcp proxy
+ *        Based of the usb-skeleton code
  */
 
 #include <linux/kernel.h>
@@ -13,6 +14,11 @@
 #include <linux/mutex.h>
 
 #include "../../common/psock_proxy_msg.h"
+
+/**
+ * Forward declarations
+ */
+static int xarpcd_read_msg( void  );
 
 /* Define these values to match your devices */
 #define USB_VENDOR_ID	0xaaaa
@@ -155,11 +161,30 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
+static void xarpcd_handle_complete_msg( void *msg )
+{
+	printk( "Got a complete msg handling it\n" );
+}
+
+/**
+ * Callback after we have received a msg
+ */
 static void xarpcd_read_msg_callback( struct urb *urb )
 {
+	int to_read = 0;
 	// Finished reading msg
-	struct psock_proxy_msg *msg = (struct psock_proxy_msg *) xpt_dev->bulk_in_buffer;
+	struct psock_proxy_msg *msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
+	memcpy( msg,  xpt_dev->bulk_in_buffer , sizeof( struct psock_proxy_msg ) );
 	printk ( "Got a proxy msg\n" );
+	if ( msg->length > sizeof( struct psock_proxy_msg ) )
+	{
+		to_read = msg->length - sizeof( struct psock_proxy_msg );
+		// Got the msg but need to get the data now
+		msg->data = kzalloc( to_read, GFP_KERNEL );	
+		memcpy( msg->data, xpt_dev->bulk_in_buffer + sizeof(struct psock_proxy_msg ), to_read );
+	}
+
+	// If we get here we got a msg without extra data
 	if ( msg->type == F_PSOCK_MSG_NONE )
 	{
 		printk( "F_PSOCK_NONE_MSG received\n" );
@@ -173,9 +198,14 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 		printk( "F_PSOCK_MSG_ACTION_REQUEST\n" );
 	}
 
+	xarpcd_handle_complete_msg( msg );
 
+	// If we get here ready to read next msg
+	xarpcd_read_msg(  );
 		
 }
+
+
 static void xarpcd_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xarpcd *dev;
@@ -203,8 +233,7 @@ static void xarpcd_read_bulk_callback(struct urb *urb)
 
 	wake_up_interruptible(&dev->bulk_in_wait);
 }
-
-static int xarpcd_read_msg( void **msg )
+static int xarpcd_read_msg( void  )
 {
 	struct usb_xarpcd *dev = xpt_dev;
 	
@@ -213,7 +242,7 @@ static int xarpcd_read_msg( void **msg )
                         usb_rcvbulkpipe(dev->udev,
                                 dev->bulk_in_endpointAddr),
                         dev->bulk_in_buffer,
-                        sizeof( struct psock_proxy_msg ),
+                        sizeof( struct psock_proxy_msg ) + 200,
                         xarpcd_read_msg_callback,
                         dev);
 	usb_submit_urb(dev->bulk_in_urb, GFP_KERNEL);
@@ -221,7 +250,6 @@ static int xarpcd_read_msg( void **msg )
 	return 0;
 
 }
-
 static int xarpcd_do_read_io(struct usb_xarpcd *dev, size_t count)
 {
 	int rv;
@@ -591,7 +619,7 @@ static int xarpcd_probe(struct usb_interface *interface,
 		 "USB Skeleton device now attached to USBSkel-%d",
 		 interface->minor);
 
-	xarpcd_read_msg( NULL);
+	xarpcd_read_msg( );
 
 	return 0;
 
