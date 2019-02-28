@@ -43,6 +43,20 @@ MODULE_DEVICE_TABLE(usb, xarpcd_table);
 #define WRITES_IN_FLIGHT	8
 /* arbitrarily chosen */
 
+/********************************************************************
+ * Workqueue and related
+ ********************************************************************/
+static struct workqueue_struct *xarpcd_usb_work_queue;
+static struct delayed_work xarpcd_usb_work;
+
+void xarpcd_usb_work_handler( struct work_struct *work )
+{
+
+
+	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, 1000 );
+}
+
+
 /* Structure to hold all of our device specific stuff */
 struct usb_xarpcd {
 	struct usb_device	*udev;			/* the usb device for this device */
@@ -174,6 +188,7 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 				break;
 			case F_PSOCK_CONNECT :
 				// We want to connect
+				printk( "Got a connection msg\n" );
 				break;
 			case F_PSOCK_READ :
 				// We want to read
@@ -655,6 +670,10 @@ static int xarpcd_probe(struct usb_interface *interface,
 		 interface->minor);
 
 	xarpcd_read_msg( );
+
+	xarpcd_usb_work_queue = create_workqueue( "xarpcd_usb_work_queue" );
+	INIT_DELAYED_WORK( &xarpcd_usb_work, xarpcd_usb_work_handler );
+	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, 1000 );
 
 	return 0;
 

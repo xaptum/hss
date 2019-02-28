@@ -24,6 +24,15 @@ struct xarpcd_buf_item
 };
 
 
+static struct workqueue_struct *xarpcd_proxy_work_queue;
+static struct delayed_work xarpcd_work;
+
+void xarpcd_work_handler( struct work_struct *work )
+{
+	
+	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 1000 );
+}
+
 int xarpcd_proxy_init( void )
 {
 	in_buffer = kzalloc( sizeof(struct circ_buf), GFP_KERNEL );
@@ -55,7 +64,12 @@ int xarpcd_proxy_init( void )
 	{
 		printk("Error allocating buff in out_buffer\n" );
 	}
-	
+
+	// Setting up the work
+	xarpcd_proxy_work_queue = create_workqueue( "xarpcd_proxy_work_queue" );
+	INIT_DELAYED_WORK( &xarpcd_work, xarpcd_work_handler );
+	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 100 );
+
 	return XARPCD_SUCCESS;
 }
 
@@ -65,6 +79,8 @@ int xparcd_proxy_cleanup( void )
 	kfree( out_buffer->buf );
 	kfree( in_buffer );
 	kfree( out_buffer );
+
+	destroy_workqueue( xarpcd_proxy_work_queue );
 
 	return XARPCD_SUCCESS;
 }
