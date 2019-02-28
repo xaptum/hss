@@ -19,6 +19,7 @@
  * Forward declarations
  */
 static int xarpcd_read_msg( void  );
+static int xarpcd_send_msg( struct psock_proxy_msg *msg );
 
 /* Define these values to match your devices */
 #define USB_VENDOR_ID	0xaaaa
@@ -189,6 +190,13 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 			case F_PSOCK_CONNECT :
 				// We want to connect
 				printk( "Got a connection msg\n" );
+				{
+					struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+					amsg->length = sizeof( struct psock_proxy_msg );
+					amsg->type = F_PSOCK_MSG_ACTION_REPLY;
+					amsg->msg_id = msg->msg_id;
+					xarpcd_send_msg( amsg );	
+				}	
 				break;
 			case F_PSOCK_READ :
 				// We want to read
@@ -214,6 +222,12 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 		printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
 	}
 
+}
+
+
+static void xarpcd_send_msg_callback( struct urb *urb )
+{
+	printk("Done sending msg\n" );
 }
 
 /**
@@ -300,6 +314,41 @@ static int xarpcd_read_msg( void  )
 	return 0;
 
 }
+
+static int xarpcd_send_msg( struct psock_proxy_msg *msg )
+{
+	
+	struct usb_xarpcd *dev = xpt_dev;
+	struct urb *urb;
+	void *buf;
+	/* create a urb, and a buffer for it, and copy the data to the urb */
+	urb = usb_alloc_urb(0, GFP_KERNEL);
+	if (!urb) {
+		printk("Error allocating urb\n" );
+		return -1;
+	}
+
+	buf = usb_alloc_coherent(dev->udev, msg->length, GFP_KERNEL,
+				 &urb->transfer_dma);
+	if (!buf) {
+		printk("Error alloc coherent for buffer sending\n" );
+		return -1;
+	}
+
+
+	usb_fill_bulk_urb(urb, dev->udev,
+			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
+			  buf, msg->length, xarpcd_send_msg_callback, dev);
+	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	usb_anchor_urb(urb, &dev->submitted);
+
+	/* send the data out the bulk port */
+	usb_submit_urb(urb, GFP_KERNEL);
+
+
+	return 0;
+}
+
 static int xarpcd_do_read_io(struct usb_xarpcd *dev, size_t count)
 {
 	int rv;
