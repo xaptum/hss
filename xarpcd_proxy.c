@@ -4,11 +4,16 @@
 
 #include "../../common/psock_proxy_msg.h"
 
+#include "xarpcd_proxy.h"
+
 #include <linux/printk.h>
 #include <linux/net.h>
 #include <net/sock.h>
 
 #include <linux/circ_buf.h>
+
+#include "xarpcd_socket.h"
+#include "xarpcd_usb.h"
 
 #define XARPCD_SUCCESS 1
 #define XARPCD_FAIL 0
@@ -27,9 +32,74 @@ struct xarpcd_buf_item
 static struct workqueue_struct *xarpcd_proxy_work_queue;
 static struct delayed_work xarpcd_work;
 
+void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
+{
+     printk( "Got a complete msg handling it\n" );
+        if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
+        {
+
+                switch ( msg->action )
+                {
+                        case F_PSOCK_CREATE:
+                                // We want to create a socket
+                                xarpcd_socket_create( msg->sock_id );
+                                printk( "Socket creation successfull\n" );
+                                break;
+case F_PSOCK_CONNECT :
+                                // We want to connect
+                                printk( "Got a connection msg\n" );
+                                {
+                                        int result = -1;
+                                        struct sockaddr *addr = msg->data;
+                                        int addrlen = msg->length - sizeof( struct psock_proxy_msg );
+                                        printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
+                                        result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
+
+                                        // Creating the answer msg
+                                        struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+                                        amsg->length = sizeof( struct psock_proxy_msg );
+                                        amsg->type = F_PSOCK_MSG_ACTION_REPLY;
+                                        amsg->msg_id = msg->msg_id;
+                                        amsg->sock_id = msg->sock_id;
+                                        amsg->status = result;
+                                        xarpcd_send_msg( amsg );        
+                                }       
+                                break;
+
+				case F_PSOCK_READ :
+                                // We want to read
+                                break;
+                        case F_PSOCK_WRITE :
+                                // We want to write
+                                break;
+                        case F_PSOCK_CLOSE :
+                                // We want to close the socket
+                                break;
+
+                        default :
+                                break;
+                }
+
+        }
+        else if ( msg->type == F_PSOCK_MSG_ACTION_REPLY  )
+        {
+                // Got an action reply
+        }
+        else if ( msg->type == F_PSOCK_MSG_NONE )
+        {
+                printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
+        }
+
+}
+
 void xarpcd_work_handler( struct work_struct *work )
 {
-	
+	struct psock_proxy_msg *msg;
+	if ( xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS )
+	{
+		xarpcd_work_handle_msg( msg );		
+	}
+
 	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 1000 );
 }
 

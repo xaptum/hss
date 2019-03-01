@@ -15,11 +15,13 @@
 
 #include "../../common/psock_proxy_msg.h"
 
+#include "xarpcd_proxy.h"
+
 /**
  * Forward declarations
  */
 static int xarpcd_read_msg( void  );
-static int xarpcd_send_msg( struct psock_proxy_msg *msg );
+int xarpcd_send_msg( struct psock_proxy_msg *msg );
 
 /* Define these values to match your devices */
 #define USB_VENDOR_ID	0xaaaa
@@ -176,8 +178,14 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 	return res;
 }
 
+/**
+ * @todo Move this to the proxy part as the msg parsing logic and the interaction with the socket code should be there
+ */
 static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 {
+	xarpcd_proxy_push_in_msg( msg );
+
+/*
 	printk( "Got a complete msg handling it\n" );
 	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
 	{
@@ -186,16 +194,26 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 		{
 			case F_PSOCK_CREATE:
 				// We want to create a socket
+				xarpcd_socket_create( msg->sock_id );
+				printk( "Socket creation successfull\n" );
 				break;
 			case F_PSOCK_CONNECT :
 				// We want to connect
 				printk( "Got a connection msg\n" );
 				{
+					int result = -1;
+					struct sockaddr *addr = msg->data;
+					int addrlen = msg->length - sizeof( struct psock_proxy_msg );
+					printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
+					result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
+
+					// Creating the answer msg
 					struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
 					amsg->length = sizeof( struct psock_proxy_msg );
 					amsg->type = F_PSOCK_MSG_ACTION_REPLY;
 					amsg->msg_id = msg->msg_id;
-					amsg->status = 1;
+					amsg->sock_id = msg->sock_id;
+					amsg->status = result;
 					xarpcd_send_msg( amsg );	
 				}	
 				break;
@@ -222,7 +240,7 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 	{
 		printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
 	}
-
+*/
 }
 
 
@@ -316,7 +334,7 @@ static int xarpcd_read_msg( void  )
 
 }
 
-static int xarpcd_send_msg( struct psock_proxy_msg *msg )
+int xarpcd_send_msg( struct psock_proxy_msg *msg )
 {
 	
 	struct usb_xarpcd *dev = xpt_dev;
@@ -336,6 +354,7 @@ static int xarpcd_send_msg( struct psock_proxy_msg *msg )
 		return -1;
 	}
 
+	memcpy( buf , msg , msg->length );
 
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
@@ -719,11 +738,18 @@ static int xarpcd_probe(struct usb_interface *interface,
 		 "USB Skeleton device now attached to USBSkel-%d",
 		 interface->minor);
 
-	xarpcd_read_msg( );
+
+	// Initialize the other components
+	xarpcd_proxy_init();
 
 	xarpcd_usb_work_queue = create_workqueue( "xarpcd_usb_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_usb_work, xarpcd_usb_work_handler );
 	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, 1000 );
+
+	
+	xarpcd_read_msg( );
+
+	
 
 	return 0;
 

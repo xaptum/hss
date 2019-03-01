@@ -8,6 +8,8 @@
 
 #include "xarpcd_socket.h"
 
+#include "linux/preempt.h"
+
 /**
  * Struct we use to store our local sockets in a list
  * So we can map the proxy socket ids, to local socket structs
@@ -35,6 +37,7 @@ static struct xarpcd_socket *xarpcd_get_xarpcd_socket( int socket_id )
 		xarpcd_socket_t *sock = list_entry( position, xarpcd_socket_t, socket_list );
 		if ( sock->sock_id == socket_id )
 		{
+			printk("xarpcd_socket : found requested socket %d\n" , socket_id );
 			return sock;
 		}
 	}
@@ -91,6 +94,12 @@ int xarpcd_socket_connect( int socket_id , struct sockaddr * addr, int addrlen)
 	struct xarpcd_socket *sock = NULL;
 	// Get the socket
 	sock = xarpcd_get_xarpcd_socket( socket_id );
+
+	if ( in_interrupt() )
+	{
+		printk("xarpcd_socket :  connect requested in interupt context ... bailing out\n" );
+		return -1;
+	}
 
 	if ( sock == NULL )
 	{
@@ -162,6 +171,8 @@ int xarpcd_socket_close( int socket_id )
 
 	// Free the socket struct
 	kfree( sock );
+
+	printk( "xarpcd_socket : Successfully released socket %d\n" , socket_id );
 
 	return 0;
 }
