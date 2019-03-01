@@ -195,6 +195,7 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 					amsg->length = sizeof( struct psock_proxy_msg );
 					amsg->type = F_PSOCK_MSG_ACTION_REPLY;
 					amsg->msg_id = msg->msg_id;
+					amsg->status = 1;
 					xarpcd_send_msg( amsg );	
 				}	
 				break;
