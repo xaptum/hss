@@ -73,7 +73,6 @@ case F_PSOCK_CONNECT :
 				{
 					int result = -1;
 					struct msghdr *msg;
-					result = xarpcd_socket_read( msg->sock_id, msg );
 				}
                                 // We want to read
                                 break;
