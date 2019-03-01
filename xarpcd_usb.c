@@ -17,6 +17,8 @@
 
 #include "xarpcd_proxy.h"
 
+#define XARPCD_USB_JIFFIES 100
+
 /**
  * Forward declarations
  */
@@ -56,7 +58,7 @@ void xarpcd_usb_work_handler( struct work_struct *work )
 {
 
 
-	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, 1000 );
+	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
 }
 
 
@@ -744,7 +746,7 @@ static int xarpcd_probe(struct usb_interface *interface,
 
 	xarpcd_usb_work_queue = create_workqueue( "xarpcd_usb_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_usb_work, xarpcd_usb_work_handler );
-	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, 1000 );
+	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
 
 	
 	xarpcd_read_msg( );

@@ -20,6 +20,8 @@
 
 #define XARPCD_BUFFER_SIZE 16
 
+#define XARPCD_PROXY_JIFFIES 100
+
 static struct circ_buf *in_buffer;
 static struct circ_buf *out_buffer;
 
@@ -43,11 +45,11 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
                         case F_PSOCK_CREATE:
                                 // We want to create a socket
                                 xarpcd_socket_create( msg->sock_id );
-                                printk( "Socket creation successfull\n" );
+                                printk( "xarpcd_proxy : Socket creation successfull\n" );
                                 break;
 case F_PSOCK_CONNECT :
                                 // We want to connect
-                                printk( "Got a connection msg\n" );
+                                printk( "xarpcd_proxy : Got a connection msg\n" );
                                 {
                                         int result = -1;
                                         struct sockaddr *addr = msg->data;
@@ -67,6 +69,12 @@ case F_PSOCK_CONNECT :
                                 break;
 
 				case F_PSOCK_READ :
+				printk( "xarpcd_proxy : Got a read request\n" );
+				{
+					int result = -1;
+					struct msghdr *msg;
+					result = xarpcd_socket_read( msg->sock_id, msg );
+				}
                                 // We want to read
                                 break;
                         case F_PSOCK_WRITE :
@@ -100,7 +108,7 @@ void xarpcd_work_handler( struct work_struct *work )
 		xarpcd_work_handle_msg( msg );		
 	}
 
-	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 1000 );
+	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
 }
 
 int xarpcd_proxy_init( void )
@@ -138,7 +146,7 @@ int xarpcd_proxy_init( void )
 	// Setting up the work
 	xarpcd_proxy_work_queue = create_workqueue( "xarpcd_proxy_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_work, xarpcd_work_handler );
-	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 100 );
+	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
 
 	return XARPCD_SUCCESS;
 }
