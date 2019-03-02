@@ -300,6 +300,10 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 	}
 
 	memcpy( buf , msg , msg->length );
+	if ( msg->length > sizeof( struct psock_proxy_msg ))
+	{
+		memcpy( buf + sizeof(struct psock_proxy_msg), msg->data, msg->length - sizeof( struct psock_proxy_msg ) );
+	}
 
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),

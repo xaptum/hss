@@ -154,7 +154,6 @@ int xarpcd_socket_read( int socket_id, void *data, int len )
 	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
 
-
 	struct msghdr msg;
 	struct kvec vec;
 	msg.msg_control = NULL;
@@ -162,7 +161,6 @@ int xarpcd_socket_read( int socket_id, void *data, int len )
 	msg.msg_flags = 0;
 	vec.iov_len = len;
 	vec.iov_base = data;
-
 
         if ( sock == NULL )
         {

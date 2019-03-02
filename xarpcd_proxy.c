@@ -74,7 +74,7 @@ case F_PSOCK_CONNECT :
 					int result;
 					int datalength = msg->status;
 					printk( "xarpcd_proxy : reading %d bytes\n" , datalength );
-					void *buf = kmalloc( datalength, GFP_KERNEL );
+					char *buf = kmalloc( datalength, GFP_KERNEL );
 					result = xarpcd_socket_read( msg->sock_id, buf, datalength  );
 
                                         // Creating the answer msg
@@ -84,7 +84,9 @@ case F_PSOCK_CONNECT :
                                         amsg->msg_id = msg->msg_id;
                                         amsg->sock_id = msg->sock_id;
                                         amsg->status = result;
-					msg->data = buf;
+					amsg->data = buf;
+
+					printk( "Done reading: result %d\n", result);
                                         xarpcd_send_msg( amsg );       
 
 				}
