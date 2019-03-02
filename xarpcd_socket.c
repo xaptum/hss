@@ -122,7 +122,6 @@ int xarpcd_socket_write( int socket_id , void *data, int len )
 	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
 
-
 	struct msghdr msg;
 	struct kvec vec;
 	msg.msg_control = NULL;
