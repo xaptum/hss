@@ -114,11 +114,24 @@ int xarpcd_socket_connect( int socket_id , struct sockaddr * addr, int addrlen)
 /**
  * Write to socket
  */
-int xarpcd_socket_write( int socket_id , struct msghdr *msg )
+int xarpcd_socket_write( int socket_id , void *data, int len )
 {
         struct xarpcd_socket *sock = NULL;
-        // Get the socket
+        int result = -1;
+	
+	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
+
+
+	struct msghdr msg;
+	struct kvec vec;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	vec.iov_len = len;
+	vec.iov_base = data;
+
+	result = kernel_sendmsg( sock->sock, &msg, &vec, len, len );
 
         if ( sock == NULL )
         {
@@ -126,7 +139,8 @@ int xarpcd_socket_write( int socket_id , struct msghdr *msg )
                 return -1;
         }
 
-	return sock_sendmsg( sock->sock, msg );
+	return result;
+//	return sock_sendmsg( sock->sock, msg );
 }
 
 /**

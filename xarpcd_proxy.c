@@ -81,16 +81,16 @@ case F_PSOCK_CONNECT :
 				printk( "xarpcd_proxy : We got a write request\n" );
 				{
 					struct msghdr *hdr = kmalloc( sizeof( struct msghdr ), GFP_KERNEL );				int datalength = msg->length - sizeof( struct psock_proxy_msg );
-					struct iovec iov;
+					struct iovec *iov = kmalloc( sizeof(struct iovec ), GFP_KERNEL );
 					int result;
 					
 					printk( "xarpcd_proxy : Writing %d bytes\n" , datalength );
-					iov.iov_base = msg->data;
-					iov.iov_len = datalength;
+					iov->iov_base = msg->data;
+					iov->iov_len = datalength;
 					
-					iov_iter_init( &hdr->msg_iter, 0, &iov, 1, datalength ); 
-					result = xarpcd_socket_write( msg->sock_id, hdr );
-				
+					iov_iter_init( &hdr->msg_iter, 0, iov, 1, datalength ); 
+					result = xarpcd_socket_write( msg->sock_id, msg->data, datalength  );
+
                                         // Creating the answer msg
                                         struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
                                         amsg->length = sizeof( struct psock_proxy_msg );
