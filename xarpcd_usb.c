@@ -186,69 +186,12 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
 static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 {
 	xarpcd_proxy_push_in_msg( msg );
-
-/*
-	printk( "Got a complete msg handling it\n" );
-	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
-	{
-
-		switch ( msg->action )
-		{
-			case F_PSOCK_CREATE:
-				// We want to create a socket
-				xarpcd_socket_create( msg->sock_id );
-				printk( "Socket creation successfull\n" );
-				break;
-			case F_PSOCK_CONNECT :
-				// We want to connect
-				printk( "Got a connection msg\n" );
-				{
-					int result = -1;
-					struct sockaddr *addr = msg->data;
-					int addrlen = msg->length - sizeof( struct psock_proxy_msg );
-					printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
-					result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
-
-					// Creating the answer msg
-					struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
-					amsg->length = sizeof( struct psock_proxy_msg );
-					amsg->type = F_PSOCK_MSG_ACTION_REPLY;
-					amsg->msg_id = msg->msg_id;
-					amsg->sock_id = msg->sock_id;
-					amsg->status = result;
-					xarpcd_send_msg( amsg );	
-				}	
-				break;
-			case F_PSOCK_READ :
-				// We want to read
-				break;
-			case F_PSOCK_WRITE :
-				// We want to write
-				break;
-			case F_PSOCK_CLOSE :
-				// We want to close the socket
-				break;
-
-			default :
-				break;
-		}
-
-	}
-	else if ( msg->type == F_PSOCK_MSG_ACTION_REPLY  )
-	{
-		// Got an action reply
-	}
-	else if ( msg->type == F_PSOCK_MSG_NONE )
-	{
-		printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
-	}
-*/
 }
 
 
 static void xarpcd_send_msg_callback( struct urb *urb )
 {
-	printk("Done sending msg\n" );
+	printk( KERN_INFO "xarpcd_usb : Done sending msg\n" );
 }
 
 /**
@@ -672,14 +615,17 @@ static struct usb_class_driver xarpcd_class = {
 	.minor_base =	USB_PSOCK_MINOR_BASE,
 };
 
+/**
+ * Out probe function called when device with correct vendor / productid is found
+ */
 static int xarpcd_probe(struct usb_interface *interface,
-		      const struct usb_device_id *id)
+		        const struct usb_device_id *id)
 {
 	struct usb_xarpcd *dev;
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
 
-	printk( "Probing for device\n");
+	printk( "xarpcd_usb : Probing for device\n");
 
 	/* allocate memory for our device state and initialize it */
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
