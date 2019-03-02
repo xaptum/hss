@@ -69,12 +69,25 @@ case F_PSOCK_CONNECT :
                                 break;
 
 				case F_PSOCK_READ :
-				printk( "xarpcd_proxy : Got a read request\n" );
+				printk( "xarpcd_proxy : We got a read request\n" );
 				{
-					int result = -1;
-					struct msghdr *msg;
+					int result;
+					int datalength = msg->status;
+					printk( "xarpcd_proxy : reading %d bytes\n" , datalength );
+					void *buf = kmalloc( datalength, GFP_KERNEL );
+					result = xarpcd_socket_read( msg->sock_id, buf, datalength  );
+
+                                        // Creating the answer msg
+                                        struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+                                        amsg->length = sizeof( struct psock_proxy_msg ) + datalength;
+                                        amsg->type = F_PSOCK_MSG_ACTION_REPLY;
+                                        amsg->msg_id = msg->msg_id;
+                                        amsg->sock_id = msg->sock_id;
+                                        amsg->status = result;
+					msg->data = buf;
+                                        xarpcd_send_msg( amsg );       
+
 				}
-                                // We want to read
                                 break;
                         case F_PSOCK_WRITE :
                                 // We want to write

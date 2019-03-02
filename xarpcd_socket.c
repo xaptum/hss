@@ -131,7 +131,6 @@ int xarpcd_socket_write( int socket_id , void *data, int len )
 	vec.iov_len = len;
 	vec.iov_base = data;
 
-	result = kernel_sendmsg( sock->sock, &msg, &vec, len, len );
 
         if ( sock == NULL )
         {
@@ -139,26 +138,42 @@ int xarpcd_socket_write( int socket_id , void *data, int len )
                 return -1;
         }
 
+	result = kernel_sendmsg( sock->sock, &msg, &vec, len, len );
+
 	return result;
-//	return sock_sendmsg( sock->sock, msg );
 }
 
 /**
  * Read from socket
  */
-int xarpcd_socket_read( int socket_id, struct msghdr *msg )
+int xarpcd_socket_read( int socket_id, void *data, int len )
 {
         struct xarpcd_socket *sock = NULL;
-        // Get the socket
+        int result = -1;
+	
+	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
+
+
+	struct msghdr msg;
+	struct kvec vec;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	vec.iov_len = len;
+	vec.iov_base = data;
+
 
         if ( sock == NULL )
         {
-                printk( "xarpcd_socket : Trying to read from unexisting socket %d\n" , socket_id );
+                printk( "xarpcd_socket : Trying to send data to unexisting socket %d\n" , socket_id );
                 return -1;
         }
 
-	return sock_recvmsg( sock->sock, msg , 0);
+	result = kernel_recvmsg( sock->sock, &msg, &vec, len, len, 0 );
+	
+	return result;
+
 }
 
 /**
