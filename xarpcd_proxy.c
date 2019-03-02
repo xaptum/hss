@@ -78,6 +78,10 @@ case F_PSOCK_CONNECT :
                                 break;
                         case F_PSOCK_WRITE :
                                 // We want to write
+				printk( "xarpcd_proxy : We got a write request\n" );
+				{
+						
+				}
                                 break;
                         case F_PSOCK_CLOSE :
                                 // We want to close the socket
