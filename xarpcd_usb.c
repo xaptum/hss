@@ -17,7 +17,7 @@
 
 #include "xarpcd_proxy.h"
 
-#define XARPCD_USB_JIFFIES 100
+#define XARPCD_USB_JIFFIES 50 
 
 /**
  * Forward declarations

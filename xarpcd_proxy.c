@@ -21,6 +21,7 @@
 #define XARPCD_BUFFER_SIZE 16
 
 #define XARPCD_PROXY_JIFFIES 100
+#define XARPCD_PROXY_COUNT 5
 
 static struct circ_buf *in_buffer;
 static struct circ_buf *out_buffer;
@@ -145,11 +146,14 @@ case F_PSOCK_CONNECT :
 
 void xarpcd_work_handler( struct work_struct *work )
 {
+	int count = 0;
 	struct psock_proxy_msg *msg;
-	if ( xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS )
+	if (  (xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS )
+		&& ( count < XARPCD_PROXY_COUNT) )
 	{
 		xarpcd_work_handle_msg( msg );	
 		kfree( msg );
+		count++;
 	}
 
 	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
