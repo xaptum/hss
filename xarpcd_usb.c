@@ -17,7 +17,8 @@
 
 #include "xarpcd_proxy.h"
 
-#define XARPCD_USB_JIFFIES 50 
+#define XARPCD_USB_JIFFIES 50
+#define XARPCD_USB_BUFFER 512
 
 /**
  * Forward declarations
@@ -270,7 +271,7 @@ static int xarpcd_read_msg( void  )
                         usb_rcvbulkpipe(dev->udev,
                                 dev->bulk_in_endpointAddr),
                         dev->bulk_in_buffer,
-                        sizeof( struct psock_proxy_msg ) + 200,
+                        sizeof( struct psock_proxy_msg ) + XARPCD_USB_BUFFER,
                         xarpcd_read_msg_callback,
                         dev);
 	usb_submit_urb(dev->bulk_in_urb, GFP_KERNEL);
