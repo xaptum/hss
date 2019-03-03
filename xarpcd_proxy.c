@@ -122,10 +122,12 @@ case F_PSOCK_CONNECT :
 				}
                                 break;
                         case F_PSOCK_CLOSE :
+				xarpcd_socket_close( msg->sock_id );
                                 // We want to close the socket
                                 break;
 
                         default :
+				printk( KERN_ERR "xarpcd_proxy: Got an unknown action request\n" );
                                 break;
                 }
 
@@ -136,7 +138,7 @@ case F_PSOCK_CONNECT :
         }
         else if ( msg->type == F_PSOCK_MSG_NONE )
         {
-                printk("Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
+                printk( KERN_INFO "xarpcd_proxy: Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
         }
 
 }
