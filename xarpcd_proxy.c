@@ -223,7 +223,6 @@ int xarpcd_proxy_pop_in_msg( void **msg )
 		return XARPCD_SUCCESS;
 	}
 	
-	printk( "xarpcd in_buffer underflow\n" );
 	return XARPCD_FAIL;
 }
 
