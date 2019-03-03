@@ -118,12 +118,12 @@ int xarpcd_socket_write( int socket_id , void *data, int len )
 {
         struct xarpcd_socket *sock = NULL;
         int result = -1;
-	
+	struct msghdr msg;
+	struct kvec vec;
+
 	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
 
-	struct msghdr msg;
-	struct kvec vec;
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
 	msg.msg_flags = 0;
@@ -149,12 +149,12 @@ int xarpcd_socket_read( int socket_id, void *data, int len )
 {
         struct xarpcd_socket *sock = NULL;
         int result = -1;
-	
+	struct msghdr msg;
+	struct kvec vec;
+
 	// Get the socket
         sock = xarpcd_get_xarpcd_socket( socket_id );
 
-	struct msghdr msg;
-	struct kvec vec;
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
 	msg.msg_flags = 0;

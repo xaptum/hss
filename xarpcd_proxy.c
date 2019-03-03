@@ -54,11 +54,12 @@ case F_PSOCK_CONNECT :
                                         int result = -1;
                                         struct sockaddr *addr = msg->data;
                                         int addrlen = msg->length - sizeof( struct psock_proxy_msg );
-                                        printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
+                                        struct psock_proxy_msg *amsg; 
+					printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
                                         result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
 
                                         // Creating the answer msg
-                                        struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+                                        amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
                                         amsg->length = sizeof( struct psock_proxy_msg );
                                         amsg->type = F_PSOCK_MSG_ACTION_REPLY;
                                         amsg->msg_id = msg->msg_id;
@@ -73,12 +74,15 @@ case F_PSOCK_CONNECT :
 				{
 					int result;
 					int datalength = msg->status;
-					printk( "xarpcd_proxy : reading %d bytes\n" , datalength );
+					struct psock_proxy_msg *amsg; 
 					char *buf = kmalloc( datalength, GFP_KERNEL );
+					
+					printk( "xarpcd_proxy : reading %d bytes\n" , datalength );
 					result = xarpcd_socket_read( msg->sock_id, buf, datalength  );
 
+
                                         // Creating the answer msg
-                                        struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+                                        amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
                                         amsg->length = sizeof( struct psock_proxy_msg ) + datalength;
                                         amsg->type = F_PSOCK_MSG_ACTION_REPLY;
                                         amsg->msg_id = msg->msg_id;
@@ -98,7 +102,7 @@ case F_PSOCK_CONNECT :
 					struct msghdr *hdr = kmalloc( sizeof( struct msghdr ), GFP_KERNEL );				int datalength = msg->length - sizeof( struct psock_proxy_msg );
 					struct iovec *iov = kmalloc( sizeof(struct iovec ), GFP_KERNEL );
 					int result;
-					
+					struct psock_proxy_msg *amsg; 	
 					printk( "xarpcd_proxy : Writing %d bytes\n" , datalength );
 					iov->iov_base = msg->data;
 					iov->iov_len = datalength;
@@ -107,7 +111,7 @@ case F_PSOCK_CONNECT :
 					result = xarpcd_socket_write( msg->sock_id, msg->data, datalength  );
 
                                         // Creating the answer msg
-                                        struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+                                        amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
                                         amsg->length = sizeof( struct psock_proxy_msg );
                                         amsg->type = F_PSOCK_MSG_ACTION_REPLY;
                                         amsg->msg_id = msg->msg_id;

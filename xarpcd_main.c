@@ -14,18 +14,3 @@ MODULE_AUTHOR("Jeroen Z");
 MODULE_DESCRIPTION("Xaptum tcp-proxy host kernel module");
 MODULE_VERSION("0.0.1");
 
-
-static int __init xarpcd_init(void)
-{
-	printk( KERN_INFO "xarpcd Init\n" );
-	return 0;
-}
-
-static void __exit xarpcd_exit(void)
-{
-	printk( KERN_INFO "xarpcd Exit\n" );
-}
-
-//module_init( xarpcd_init );
-//module_exit( xarpcd_exit );
-
