@@ -65,7 +65,8 @@ case F_PSOCK_CONNECT :
                                         amsg->msg_id = msg->msg_id;
                                         amsg->sock_id = msg->sock_id;
                                         amsg->status = result;
-                                        xarpcd_send_msg( amsg );        
+                                        xarpcd_send_msg( amsg );       
+					kfree( amsg );
                                 }       
                                 break;
 
@@ -92,6 +93,8 @@ case F_PSOCK_CONNECT :
 
 					printk( "Done reading: result %d\n", result);
                                         xarpcd_send_msg( amsg );       
+					kfree ( buf );
+					kfree ( amsg );
 
 				}
                                 break;
@@ -99,15 +102,11 @@ case F_PSOCK_CONNECT :
                                 // We want to write
 				printk( "xarpcd_proxy : We got a write request\n" );
 				{
-					struct msghdr *hdr = kmalloc( sizeof( struct msghdr ), GFP_KERNEL );				int datalength = msg->length - sizeof( struct psock_proxy_msg );
-					struct iovec *iov = kmalloc( sizeof(struct iovec ), GFP_KERNEL );
 					int result;
-					struct psock_proxy_msg *amsg; 	
+					struct psock_proxy_msg *amsg; 
+					int datalength = msg->length - sizeof( struct psock_proxy_msg );
 					printk( "xarpcd_proxy : Writing %d bytes\n" , datalength );
-					iov->iov_base = msg->data;
-					iov->iov_len = datalength;
 					
-					iov_iter_init( &hdr->msg_iter, 0, iov, 1, datalength ); 
 					result = xarpcd_socket_write( msg->sock_id, msg->data, datalength  );
 
                                         // Creating the answer msg
@@ -117,7 +116,9 @@ case F_PSOCK_CONNECT :
                                         amsg->msg_id = msg->msg_id;
                                         amsg->sock_id = msg->sock_id;
                                         amsg->status = result;
-                                        xarpcd_send_msg( amsg );        
+                                        xarpcd_send_msg( amsg );       
+
+					kfree( amsg );
 				}
                                 break;
                         case F_PSOCK_CLOSE :
@@ -145,7 +146,8 @@ void xarpcd_work_handler( struct work_struct *work )
 	struct psock_proxy_msg *msg;
 	if ( xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS )
 	{
-		xarpcd_work_handle_msg( msg );		
+		xarpcd_work_handle_msg( msg );	
+		kfree( msg );
 	}
 
 	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
