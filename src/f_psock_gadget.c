@@ -436,8 +436,9 @@ static int alloc_requests( struct usb_composite_dev *cdev, struct f_psock *psock
 {
 	int result = 0;
 
-	struct psock_proxy_msg msg;
+	struct psock_proxy_msg msg = {0};
 	msg.type = F_PSOCK_MSG_NONE;
+	msg.length = sizeof(struct psock_proxy_msg );
 	
 	alloc_msg_send_request( cdev, psock , &msg );
 	alloc_msg_read_request( cdev, psock ); 
