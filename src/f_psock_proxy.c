@@ -4,7 +4,7 @@
  */
 
 #include "f_psock_proxy.h"
-#include "../../common/psock_proxy_msg.h"
+#include "psock_proxy_msg.h"
 
 #include <linux/circ_buf.h>
 #include <linux/printk.h>

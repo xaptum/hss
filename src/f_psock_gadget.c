@@ -9,7 +9,7 @@
 
 #include <linux/usb/composite.h>
 
-#include "../../common/psock_proxy_msg.h"
+#include "psock_proxy_msg.h"
 #include "f_psock_proxy.h"
 
 #define PSOCK_PROXY_JIFFIES 50
@@ -67,8 +67,10 @@ static struct f_psock *w_psock;
 
 void f_psock_gadget_work_handler( struct work_struct *work )
 {
+	printk("f_psock: f_psock_gadget_work_handler enter");
 	int count = 0;
 	psock_proxy_msg_t * msg = NULL;
+	
 	// Check if we have new outgoing msg to send
 	while ( ( f_psock_proxy_pop_out_msg( (void **)&msg ) == 1 )
 	     && ( count < PSOCK_GADGET_MAX_SEND ) )
@@ -291,6 +293,8 @@ static void psock_free_func( struct usb_function *f )
 {
 	struct f_psock_opts *opts;
 
+	printk( "f_psock: psock_free_func\n" );
+
         opts = container_of(f->fi, struct f_psock_opts, func_inst);
 
         mutex_lock(&opts->lock);
@@ -332,21 +336,23 @@ static void psock_read_complete( struct usb_ep *ep, struct usb_request *req )
 {
 
 	// Push the msg to the proxy
-	void *data = req->buf;
-	struct psock_proxy_msg *msg = kmalloc( sizeof( struct psock_proxy_msg ) , GFP_KERNEL );
-	memcpy( msg, data, sizeof( struct psock_proxy_msg ) );
+	psock_proxy_msg_packet_t *packet = req->buf;
+	psock_proxy_msg_t *msg = kmalloc( sizeof( struct psock_proxy_msg ) , GFP_KERNEL );
+	uint32_t packet_len = 0;
 
-	printk( "Msg : %d %d %ld\n", msg->type, msg->msg_id, msg->length );
+	packet_len = psock_proxy_packet_to_msg(packet,msg);
+
+	printk( "Msg : %d %d %u\n", msg->type, msg->msg_id, msg->length );
 
 	if ( msg->length > req->length )
 	{
 		printk( KERN_ERR "Incomplete msg received\n" );
 	}
 
-	if ( msg->length > sizeof( struct psock_proxy_msg ) )
+	if ( msg->length > sizeof( psock_proxy_msg_t ) )
 	{
-		msg->data = kmalloc( msg->length - sizeof( struct psock_proxy_msg ), GFP_KERNEL );
-		memcpy( msg->data, data + sizeof( struct psock_proxy_msg ) , msg->length - sizeof(struct psock_proxy_msg ) );
+		msg->data = kmalloc( msg->length - sizeof( psock_proxy_msg_t ), GFP_KERNEL );
+		memcpy( msg->data,  packet->data , msg->length - sizeof(psock_proxy_msg_t) );
 	}
 	else
 	{
@@ -391,17 +397,30 @@ static void psock_complete( struct usb_ep *ep, struct usb_request *req )
 static int alloc_msg_send_request( struct usb_composite_dev *cdev, struct f_psock *psock, struct psock_proxy_msg *msg )
 {
 	struct usb_request *out_req;
+	size_t data_len;
+	psock_proxy_msg_packet_t *packet;
+	uint32_t packet_len;
 
-	printk( "Allocating msg request to send\n" );
+	//Calculate the length of the outgoing packet
+	data_len = msg->length - sizeof(psock_proxy_msg_t);
+
 	out_req = usb_ep_alloc_request( psock->in_ep, GFP_ATOMIC );
-	out_req->length = msg->length;
-	out_req->buf = kmalloc( out_req->length, GFP_ATOMIC );
-	memcpy( out_req->buf, msg, sizeof( struct psock_proxy_msg ) );
+	out_req->buf = kmalloc( data_len+sizeof(psock_proxy_msg_packet_t), GFP_ATOMIC );
+	packet = out_req->buf;
+
+	//Copy the message fields to the outgoing packet
+	packet_len = psock_proxy_msg_to_packet(msg,packet);
+
+	//Set the out request length to the pacekts size
+	out_req->length = packet_len;
+
 	// TODO Check if not to big also
-	if ( msg->length > sizeof( struct psock_proxy_msg ) )
+	if ( data_len > 0 )
 	{
-		memcpy( out_req->buf + sizeof( struct psock_proxy_msg ), msg->data, (msg->length - sizeof(struct psock_proxy_msg ) ) );
+		/* Copy the data to the remainder of the allocated space */
+		memcpy( packet->data, msg->data, data_len );
 	}
+
 	// We put a pointer to the msg in the context
 	out_req->context = msg;
 
@@ -418,7 +437,7 @@ static int alloc_msg_read_request( struct usb_composite_dev *cdev, struct f_psoc
 
 	printk( "Allocating msg request to read\n" );
 	out_req = usb_ep_alloc_request( psock->out_ep, GFP_ATOMIC );
-	out_req->length = sizeof(struct psock_proxy_msg ) + PSOCK_GADGET_BUF_SIZE;
+	out_req->length = sizeof( psock_proxy_msg_packet_t ) + PSOCK_GADGET_BUF_SIZE;
 	out_req->buf = kmalloc( out_req->length, GFP_ATOMIC );
 	out_req->dma = 0;
 	out_req->complete = psock_read_complete;
