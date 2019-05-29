@@ -489,7 +489,12 @@ static int enable_psock( struct usb_composite_dev *cdev, struct f_psock *psock )
 
 static void disable_psock(struct f_psock *psock )
 {
-	// @todo
+	printk( "f_psock: disable_psock\n" );
+	if(psock)
+	{
+		usb_ep_disable(psock->in_ep);
+		usb_ep_disable(psock->out_ep);
+	}
 }
 
 
