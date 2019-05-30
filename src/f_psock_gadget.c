@@ -98,6 +98,7 @@ static struct usb_interface_descriptor psock_intf = {
 	.bDescriptorType = USB_DT_INTERFACE,
 	.bNumEndpoints = 2,
 	.bInterfaceClass = USB_CLASS_VENDOR_SPEC,
+	.bInterfaceSubClass = 0xab,
 };
 
 /**
@@ -461,7 +462,7 @@ static int alloc_requests( struct usb_composite_dev *cdev, struct f_psock *psock
 	
 	alloc_msg_send_request( cdev, psock , &msg );
 	alloc_msg_read_request( cdev, psock ); 
-	
+
 	return result;
 
 }
