@@ -201,16 +201,21 @@ static void xarpcd_send_msg_callback( struct urb *urb )
 static void xarpcd_read_msg_callback( struct urb *urb )
 {
 	int to_read = 0;
+	struct psock_proxy_msg *msg;
+	psock_proxy_msg_packet_t * packet;
 	// Finished reading msg
-	struct psock_proxy_msg *msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
-	memcpy( msg,  xpt_dev->bulk_in_buffer , sizeof( struct psock_proxy_msg ) );
+	msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
+	packet = (psock_proxy_msg_packet_t *)xpt_dev->bulk_in_buffer;
 	printk ( "Got a proxy msg\n" );
+
+	psock_proxy_packet_to_msg(packet, msg);
+
 	if ( msg->length > sizeof( struct psock_proxy_msg ) )
 	{
 		to_read = msg->length - sizeof( struct psock_proxy_msg );
 		// Got the msg but need to get the data now
 		msg->data = kzalloc( to_read, GFP_KERNEL );	
-		memcpy( msg->data, xpt_dev->bulk_in_buffer + sizeof(struct psock_proxy_msg ), to_read );
+		memcpy( msg->data, packet->data, to_read );
 	}
 
 	// If we get here we got a msg without extra data
@@ -275,7 +280,9 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 	
 	struct usb_xarpcd *dev = xpt_dev;
 	struct urb *urb;
-	void *buf;
+	psock_proxy_msg_packet_t *packet;
+	uint32_t packen_len = sizeof(psock_proxy_msg_packet_t)+msg->length-sizeof(psock_proxy_msg_t);
+
 	/* create a urb, and a buffer for it, and copy the data to the urb */
 	urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!urb) {
@@ -283,22 +290,23 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 		return -1;
 	}
 
-	buf = usb_alloc_coherent(dev->udev, msg->length, GFP_KERNEL,
+	packet = usb_alloc_coherent(dev->udev, packen_len, GFP_KERNEL,
 				 &urb->transfer_dma);
-	if (!buf) {
+	if (!packet) {
 		printk("Error alloc coherent for buffer sending\n" );
 		return -1;
 	}
 
-	memcpy( buf , msg , msg->length );
+
+	psock_proxy_msg_to_packet(msg,packet);
 	if ( msg->length > sizeof( struct psock_proxy_msg ))
 	{
-		memcpy( buf + sizeof(struct psock_proxy_msg), msg->data, msg->length - sizeof( struct psock_proxy_msg ) );
+		memcpy( packet->data, msg->data, msg->length - sizeof( struct psock_proxy_msg ) );
 	}
 
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
-			  buf, msg->length, xarpcd_send_msg_callback, dev);
+			  packet, packen_len, xarpcd_send_msg_callback, dev);
 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_anchor_urb(urb, &dev->submitted);
 
