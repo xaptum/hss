@@ -219,17 +219,9 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	}
 
 	// If we get here we got a msg without extra data
-	if ( msg->type == F_PSOCK_MSG_NONE )
+	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
 	{
-		printk( "F_PSOCK_NONE_MSG received\n" );
-		if ( msg->length == sizeof(struct psock_proxy_msg ) )
-		{
-			printk("Correct length received\n" );
-		}
-	}
-	else if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
-	{
-		printk( "F_PSOCK_MSG_ACTION_REQUEST\n" );
+		printk( "F_PSOCK_MSG_ACTION_REQUEST with payload length = %lu\n", msg->length - sizeof( struct psock_proxy_msg ));
 	}
 
 	xarpcd_handle_complete_msg( msg );
@@ -243,8 +235,6 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 static void xarpcd_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xarpcd *dev;
-
-	printk( "BULK READ CALLED\n" );
 
 	dev = urb->context;
 
