@@ -84,7 +84,7 @@ case F_PSOCK_CONNECT :
 
                                         // Creating the answer msg
                                         amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
-                                        amsg->length = sizeof( struct psock_proxy_msg ) + datalength;
+                                        amsg->length = sizeof( struct psock_proxy_msg ) + result;
                                         amsg->type = F_PSOCK_MSG_ACTION_REPLY;
                                         amsg->msg_id = msg->msg_id;
                                         amsg->sock_id = msg->sock_id;
