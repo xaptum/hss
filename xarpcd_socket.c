@@ -38,7 +38,6 @@ static struct xarpcd_socket *xarpcd_get_xarpcd_socket( int socket_id )
 		xarpcd_socket_t *sock = list_entry( position, xarpcd_socket_t, socket_list );
 		if ( sock->sock_id == socket_id )
 		{
-			printk("xarpcd_socket : found requested socket %d\n" , socket_id );
 			return sock;
 		}
 	}

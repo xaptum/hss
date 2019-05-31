@@ -36,7 +36,6 @@ static struct delayed_work xarpcd_work;
 
 void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 {
-     printk( "Got a complete msg handling it\n" );
         if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
         {
 
@@ -45,17 +44,15 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
                         case F_PSOCK_CREATE:
                                 // We want to create a socket
                                 xarpcd_socket_create( msg->sock_id );
-                                printk( "xarpcd_proxy : Socket creation successfull\n" );
                                 break;
-case F_PSOCK_CONNECT :
+                                
+                        case F_PSOCK_CONNECT :
                                 // We want to connect
-                                printk( "xarpcd_proxy : Got a connection msg\n" );
                                 {
                                         int result = -1;
                                         struct sockaddr *addr = msg->data;
                                         int addrlen = msg->length - sizeof( struct psock_proxy_msg );
                                         struct psock_proxy_msg *amsg; 
-					printk( "Connect request : sock %d, addrlen %d\n" , msg->sock_id, addrlen );
                                         result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
 
                                         // Creating the answer msg
@@ -71,14 +68,12 @@ case F_PSOCK_CONNECT :
                                 break;
 
 				case F_PSOCK_READ :
-				printk( "xarpcd_proxy : We got a read request\n" );
 				{
 					int result;
 					int datalength = msg->status;
 					struct psock_proxy_msg *amsg; 
 					char *buf = kmalloc( datalength, GFP_KERNEL );
 					
-					printk( "xarpcd_proxy : reading %d bytes\n" , datalength );
 					result = xarpcd_socket_read( msg->sock_id, buf, datalength  );
 
 
@@ -91,7 +86,6 @@ case F_PSOCK_CONNECT :
                                         amsg->status = result;
 					amsg->data = buf;
 
-					printk( "Done reading: result %d\n", result);
                                         xarpcd_send_msg( amsg );       
 					kfree ( buf );
 					kfree ( amsg );
@@ -100,12 +94,10 @@ case F_PSOCK_CONNECT :
                                 break;
                         case F_PSOCK_WRITE :
                                 // We want to write
-				printk( "xarpcd_proxy : We got a write request\n" );
 				{
 					int result;
 					struct psock_proxy_msg *amsg; 
 					int datalength = msg->length - sizeof( struct psock_proxy_msg );
-					printk( "xarpcd_proxy : Writing %d bytes\n" , datalength );
 					
 					result = xarpcd_socket_write( msg->sock_id, msg->data, datalength  );
 
@@ -127,7 +119,6 @@ case F_PSOCK_CONNECT :
                                 break;
 
                         default :
-				printk( KERN_ERR "xarpcd_proxy: Got an unknown action request\n" );
                                 break;
                 }
 
@@ -138,7 +129,7 @@ case F_PSOCK_CONNECT :
         }
         else if ( msg->type == F_PSOCK_MSG_NONE )
         {
-                printk( KERN_INFO "xarpcd_proxy: Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
+                printk( KERN_INFO KERN_DEBUG "xarpcd_proxy: Got a F_PSOCK_MSG_NONE msg .. ignoring it \n" );
         }
 
 }
@@ -304,3 +295,4 @@ int xarpcd_proxy_put_next_reply( void )
 {
 	return 0;
 }
+
