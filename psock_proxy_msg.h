@@ -49,33 +49,37 @@ typedef enum psock_proxy_state
 } psock_proxy_state_t;
 
 /**
- * The message struct
+ * The packet to be sent over the network
  */
-#define _PSOCK_PROXY_MSG_HEADER \
-	uint32_t magic; 	/**< Should hold the magic number */ \
-	uint32_t type;		/**< The msg type */ \
-	uint32_t action;		/**< The msg action */ \
-	uint32_t msg_id;	/**< Id for the msg, when reply should be the same */ \
-	uint32_t sock_id;	/**< Socket id identifier (proxy id ) */ \
-	uint32_t status;		/**< Status field used for status of action replies */ \
-	uint32_t length; 	/**< total data length of the message including data */ \
-	uint32_t state;
-
 typedef struct psock_proxy_msg_packet
 {
-	_PSOCK_PROXY_MSG_HEADER
+	__le32 magic; 	/**< Should hold the magic number */
+	__le32 type;		/**< The msg type */
+	__le32 action;		/**< The msg action */
+	__le32 msg_id;	/**< Id for the msg, when reply should be the same */
+	__le32 sock_id;	/**< Socket id identifier (proxy id ) */
+	__le32 status;		/**< Status field used for status of action replies */
+	__le32 length; 	/**< total data length of the message including data */
+	__le32 state;
 	unsigned char data[];
 } psock_proxy_msg_packet_t;
 
 typedef struct psock_proxy_msg
 {
-	_PSOCK_PROXY_MSG_HEADER
+	uint32_t magic; 	/**< Should hold the magic number */
+	uint32_t type;		/**< The msg type */
+	uint32_t action;		/**< The msg action */
+	uint32_t msg_id;	/**< Id for the msg, when reply should be the same */
+	uint32_t sock_id;	/**< Socket id identifier (proxy id ) */
+	uint32_t status;		/**< Status field used for status of action replies */
+	uint32_t length; 	/**< total data length of the message including data */
+	uint32_t state;
 	void * data;			/**< Holder necessary to both, but they have no relation between systems */
 	struct psock_proxy_msg *related;/**< f_psock only */
 	struct list_head wait_list;	/**< f_psock only */
 } psock_proxy_msg_t;
 
-uint32_t psock_proxy_msg_to_packet(psock_proxy_msg_t *msg, psock_proxy_msg_packet_t *packet);
-uint32_t psock_proxy_packet_to_msg(psock_proxy_msg_packet_t *packet, psock_proxy_msg_t *msg);
+void psock_proxy_msg_to_packet(psock_proxy_msg_t *msg, psock_proxy_msg_packet_t *packet);
+void psock_proxy_packet_to_msg(psock_proxy_msg_packet_t *packet, psock_proxy_msg_t *msg);
 
 #endif 
