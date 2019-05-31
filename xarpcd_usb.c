@@ -57,9 +57,7 @@ static struct delayed_work xarpcd_usb_work;
 
 void xarpcd_usb_work_handler( struct work_struct *work )
 {
-
-
-	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
+	xarpcd_read_msg( );
 }
 
 
@@ -707,11 +705,6 @@ static int xarpcd_probe(struct usb_interface *interface,
 	xarpcd_usb_work_queue = create_workqueue( "xarpcd_usb_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_usb_work, xarpcd_usb_work_handler );
 	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
-
-	
-	xarpcd_read_msg( );
-
-	
 
 	return 0;
 
