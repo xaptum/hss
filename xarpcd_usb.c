@@ -29,10 +29,13 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg );
 /* Define these values to match your devices */
 #define USB_VENDOR_ID	0x02fe
 #define USB_PRODUCT_ID	0x0b02
+#define USB_CLASS_ID 	0xFF
+#define USB_SUBCLASS_ID	0xAB
+#define USB_PROTO_ID	0x00
 
 /* table of devices that work with this driver */
 static const struct usb_device_id xarpcd_table[] = {
-	{ USB_DEVICE(USB_VENDOR_ID, USB_PRODUCT_ID) },
+	{ USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID, USB_PRODUCT_ID, USB_CLASS_ID, USB_SUBCLASS_ID, USB_PROTO_ID) },
 	{ }					/* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, xarpcd_table);
