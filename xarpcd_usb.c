@@ -711,6 +711,8 @@ static int xarpcd_probe(struct usb_interface *interface,
 	return 0;
 
 error:
+	dev_err(&interface->dev,
+		"Error path retval=%d\n",retval);
 	/* this frees allocated memory */
 	kref_put(&dev->kref, xarpcd_delete);
 
