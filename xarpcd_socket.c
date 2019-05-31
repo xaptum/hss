@@ -7,6 +7,7 @@
  */
 
 #include "xarpcd_socket.h"
+#include "psock_proxy_msg.h"
 
 #include "linux/preempt.h"
 

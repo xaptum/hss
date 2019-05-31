@@ -13,7 +13,7 @@
 #include <linux/usb.h>
 #include <linux/mutex.h>
 
-#include "../../common/psock_proxy_msg.h"
+#include "psock_proxy_msg.h"
 
 #include "xarpcd_proxy.h"
 
