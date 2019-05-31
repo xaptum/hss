@@ -663,11 +663,15 @@ static int xarpcd_probe(struct usb_interface *interface,
 	dev->bulk_in_buffer = kmalloc(dev->bulk_in_size, GFP_KERNEL);
 	if (!dev->bulk_in_buffer) {
 		retval = -ENOMEM;
+		dev_err(&interface->dev,
+			"bulk_in_buffer failed \n");
 		goto error;
 	}
 	dev->bulk_in_urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!dev->bulk_in_urb) {
 		retval = -ENOMEM;
+		dev_err(&interface->dev,
+			"bulk_in_urb failed \n");
 		goto error;
 	}
 
