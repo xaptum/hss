@@ -27,8 +27,8 @@ static int xarpcd_read_msg( void  );
 int xarpcd_send_msg( struct psock_proxy_msg *msg );
 
 /* Define these values to match your devices */
-#define USB_VENDOR_ID	0xaaaa
-#define USB_PRODUCT_ID	0xbbbb
+#define USB_VENDOR_ID	0x02fe
+#define USB_PRODUCT_ID	0x0b02
 
 /* table of devices that work with this driver */
 static const struct usb_device_id xarpcd_table[] = {
