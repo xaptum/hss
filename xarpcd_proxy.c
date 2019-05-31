@@ -2,8 +2,7 @@
  * Proxy part for the xarpcd kernel module
  */
 
-#include "../../common/psock_proxy_msg.h"
-
+#include "psock_proxy_msg.h"
 #include "xarpcd_proxy.h"
 
 #include <linux/printk.h>
@@ -305,4 +304,3 @@ int xarpcd_proxy_put_next_reply( void )
 {
 	return 0;
 }
-
