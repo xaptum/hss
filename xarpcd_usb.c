@@ -204,6 +204,15 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	int to_read = 0;
 	struct psock_proxy_msg *msg;
 	psock_proxy_msg_packet_t * packet;
+
+	/* Verify the URB return status */
+	if(urb->status != 0 )
+	{
+		printk( KERN_ERR "xarpcd_usb: read_msg_callback with urb->status=%d", 
+			urb->status );
+		goto exit;
+	}
+
 	// Finished reading msg
 	msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
 	packet = (psock_proxy_msg_packet_t *)xpt_dev->bulk_in_buffer;
@@ -227,6 +236,7 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 
 	xarpcd_handle_complete_msg( msg );
 
+	exit:
 	// If we get here ready to read next msg
 	xarpcd_read_msg(  );
 		
