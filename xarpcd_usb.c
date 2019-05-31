@@ -624,6 +624,13 @@ static struct usb_class_driver xarpcd_class = {
 static int xarpcd_probe(struct usb_interface *interface,
 		        const struct usb_device_id *id)
 {
+	/* Filter to see if we want to handle this device */
+	if(interface->cur_altsetting->desc.bInterfaceSubClass != 0xab)
+	{
+		printk( "xarpcd_usb : Turning down device 0x%x\n", (unsigned char)interface->cur_altsetting->desc.bInterfaceSubClass);
+		return -ENODEV;
+	}
+
 	struct usb_xarpcd *dev;
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
