@@ -107,7 +107,7 @@ static int xarpcd_open(struct inode *inode, struct file *file)
 	int subminor;
 	int retval = 0;
 
-	printk("Device open called\n" );
+	pr_debug("Device open called\n" );
 
 	subminor = iminor(inode);
 
@@ -193,7 +193,7 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 
 static void xarpcd_send_msg_callback( struct urb *urb )
 {
-	printk( KERN_INFO "xarpcd_usb : Done sending msg\n" );
+	pr_debug("xarpcd_usb : Done sending msg\n" );
 }
 
 /**
@@ -208,7 +208,7 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	/* Verify the URB return status */
 	if(urb->status != 0 )
 	{
-		printk( KERN_ERR "xarpcd_usb: read_msg_callback with urb->status=%d", 
+		pr_err( "xarpcd_usb: read_msg_callback with urb->status=%d", 
 			urb->status );
 		goto exit;
 	}
@@ -216,7 +216,7 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	// Finished reading msg
 	msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
 	packet = (psock_proxy_msg_packet_t *)xpt_dev->bulk_in_buffer;
-	printk ( "Got a proxy msg\n" );
+	pr_debug ( "Got a proxy msg\n" );
 
 	psock_proxy_packet_to_msg(packet, msg);
 
@@ -231,7 +231,7 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	// If we get here we got a msg without extra data
 	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
 	{
-		printk( "F_PSOCK_MSG_ACTION_REQUEST with payload length = %lu\n", msg->length - sizeof( struct psock_proxy_msg ));
+		pr_debug( "F_PSOCK_MSG_ACTION_REQUEST with payload length = %lu\n", msg->length - sizeof( struct psock_proxy_msg ));
 	}
 
 	xarpcd_handle_complete_msg( msg );
@@ -297,14 +297,14 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 	/* create a urb, and a buffer for it, and copy the data to the urb */
 	urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!urb) {
-		printk("Error allocating urb\n" );
+		pr_err("Error allocating urb\n" );
 		return -1;
 	}
 
 	packet = usb_alloc_coherent(dev->udev, packen_len, GFP_KERNEL,
 				 &urb->transfer_dma);
 	if (!packet) {
-		printk("Error alloc coherent for buffer sending\n" );
+		dev_err(&dev->interface->dev,"Error alloc coherent for buffer sending\n" );
 		return -1;
 	}
 
@@ -639,7 +639,7 @@ static int xarpcd_probe(struct usb_interface *interface,
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
 
-	printk( "xarpcd_usb : Probing for device\n");
+	pr_debug( "xarpcd_usb : Probing for device\n");
 
 	/* allocate memory for our device state and initialize it */
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
