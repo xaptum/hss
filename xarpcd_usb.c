@@ -11,6 +11,7 @@
 #include <linux/kref.h>
 #include <linux/uaccess.h>
 #include <linux/usb.h>
+#include <linux/usb/cdc.h>
 #include <linux/mutex.h>
 
 #include "psock_proxy_msg.h"
@@ -27,9 +28,11 @@
 static int xarpcd_read_msg( void  );
 int xarpcd_send_msg( struct psock_proxy_msg *msg );
 
-/* table of devices that work with this driver */
+/* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xarpcd_table[] = {
-	{ USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_XAPRW001, USB_PRODUCT_ID_XAPRW001, USB_CLASS_ID_XAPRW001, USB_SUBCLASS_ID_XAPRW001, USB_PROTO_ID_XAPRW001) },
+	{ USB_VENDOR_AND_INTERFACE_INFO(USB_VENDOR_ID_XAPTUM, USB_CLASS_VENDOR_SPEC,
+                            USB_SUBCLASS_XAPTUM_PSOCK,
+                            USB_CDC_PROTO_NONE) },
 	{ }					/* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, xarpcd_table);
