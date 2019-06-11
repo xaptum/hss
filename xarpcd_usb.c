@@ -11,11 +11,13 @@
 #include <linux/kref.h>
 #include <linux/uaccess.h>
 #include <linux/usb.h>
+#include <linux/usb/cdc.h>
 #include <linux/mutex.h>
 
-#include "../../common/psock_proxy_msg.h"
+#include "psock_proxy_msg.h"
 
 #include "xarpcd_proxy.h"
+#include "xarpcd_usb.h"
 
 #define XARPCD_USB_JIFFIES 50
 #define XARPCD_USB_BUFFER 512
@@ -26,13 +28,11 @@
 static int xarpcd_read_msg( void  );
 int xarpcd_send_msg( struct psock_proxy_msg *msg );
 
-/* Define these values to match your devices */
-#define USB_VENDOR_ID	0xaaaa
-#define USB_PRODUCT_ID	0xbbbb
-
-/* table of devices that work with this driver */
+/* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xarpcd_table[] = {
-	{ USB_DEVICE(USB_VENDOR_ID, USB_PRODUCT_ID) },
+	{ USB_VENDOR_AND_INTERFACE_INFO(USB_VENDOR_ID_XAPTUM, USB_CLASS_VENDOR_SPEC,
+                            USB_SUBCLASS_XAPTUM_PSOCK,
+                            USB_CDC_PROTO_NONE) },
 	{ }					/* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, xarpcd_table);
@@ -57,9 +57,7 @@ static struct delayed_work xarpcd_usb_work;
 
 void xarpcd_usb_work_handler( struct work_struct *work )
 {
-
-
-	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
+	xarpcd_read_msg( );
 }
 
 
@@ -106,7 +104,7 @@ static int xarpcd_open(struct inode *inode, struct file *file)
 	int subminor;
 	int retval = 0;
 
-	printk("Device open called\n" );
+	pr_debug("Device open called\n" );
 
 	subminor = iminor(inode);
 
@@ -192,7 +190,7 @@ static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 
 static void xarpcd_send_msg_callback( struct urb *urb )
 {
-	printk( KERN_INFO "xarpcd_usb : Done sending msg\n" );
+	pr_debug("xarpcd_usb : Done sending msg\n" );
 }
 
 /**
@@ -201,34 +199,41 @@ static void xarpcd_send_msg_callback( struct urb *urb )
 static void xarpcd_read_msg_callback( struct urb *urb )
 {
 	int to_read = 0;
+	struct psock_proxy_msg *msg;
+	psock_proxy_msg_packet_t * packet;
+
+	/* Verify the URB return status */
+	if(urb->status != 0 )
+	{
+		pr_err( "xarpcd_usb: read_msg_callback with urb->status=%d", 
+			urb->status );
+		goto exit;
+	}
+
 	// Finished reading msg
-	struct psock_proxy_msg *msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
-	memcpy( msg,  xpt_dev->bulk_in_buffer , sizeof( struct psock_proxy_msg ) );
-	printk ( "Got a proxy msg\n" );
+	msg = kzalloc( sizeof(struct psock_proxy_msg ) , GFP_KERNEL );
+	packet = (psock_proxy_msg_packet_t *)xpt_dev->bulk_in_buffer;
+	pr_debug ( "Got a proxy msg\n" );
+
+	psock_proxy_packet_to_msg(packet, msg);
+
 	if ( msg->length > sizeof( struct psock_proxy_msg ) )
 	{
 		to_read = msg->length - sizeof( struct psock_proxy_msg );
 		// Got the msg but need to get the data now
 		msg->data = kzalloc( to_read, GFP_KERNEL );	
-		memcpy( msg->data, xpt_dev->bulk_in_buffer + sizeof(struct psock_proxy_msg ), to_read );
+		memcpy( msg->data, packet->data, to_read );
 	}
 
 	// If we get here we got a msg without extra data
-	if ( msg->type == F_PSOCK_MSG_NONE )
+	if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
 	{
-		printk( "F_PSOCK_NONE_MSG received\n" );
-		if ( msg->length == sizeof(struct psock_proxy_msg ) )
-		{
-			printk("Correct length received\n" );
-		}
-	}
-	else if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
-	{
-		printk( "F_PSOCK_MSG_ACTION_REQUEST\n" );
+		pr_debug( "F_PSOCK_MSG_ACTION_REQUEST with payload length = %lu\n", msg->length - sizeof( struct psock_proxy_msg ));
 	}
 
 	xarpcd_handle_complete_msg( msg );
 
+	exit:
 	// If we get here ready to read next msg
 	xarpcd_read_msg(  );
 		
@@ -238,8 +243,6 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 static void xarpcd_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xarpcd *dev;
-
-	printk( "BULK READ CALLED\n" );
 
 	dev = urb->context;
 
@@ -285,30 +288,33 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 	
 	struct usb_xarpcd *dev = xpt_dev;
 	struct urb *urb;
-	void *buf;
+	psock_proxy_msg_packet_t *packet;
+	uint32_t packen_len = sizeof(psock_proxy_msg_packet_t)+msg->length-sizeof(psock_proxy_msg_t);
+
 	/* create a urb, and a buffer for it, and copy the data to the urb */
 	urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!urb) {
-		printk("Error allocating urb\n" );
+		pr_err("Error allocating urb\n" );
 		return -1;
 	}
 
-	buf = usb_alloc_coherent(dev->udev, msg->length, GFP_KERNEL,
+	packet = usb_alloc_coherent(dev->udev, packen_len, GFP_KERNEL,
 				 &urb->transfer_dma);
-	if (!buf) {
-		printk("Error alloc coherent for buffer sending\n" );
+	if (!packet) {
+		dev_err(&dev->interface->dev,"Error alloc coherent for buffer sending\n" );
 		return -1;
 	}
 
-	memcpy( buf , msg , msg->length );
+
+	psock_proxy_msg_to_packet(msg,packet);
 	if ( msg->length > sizeof( struct psock_proxy_msg ))
 	{
-		memcpy( buf + sizeof(struct psock_proxy_msg), msg->data, msg->length - sizeof( struct psock_proxy_msg ) );
+		memcpy( packet->data, msg->data, msg->length - sizeof( struct psock_proxy_msg ) );
 	}
 
 	usb_fill_bulk_urb(urb, dev->udev,
 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
-			  buf, msg->length, xarpcd_send_msg_callback, dev);
+			  packet, packen_len, xarpcd_send_msg_callback, dev);
 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_anchor_urb(urb, &dev->submitted);
 
@@ -630,7 +636,7 @@ static int xarpcd_probe(struct usb_interface *interface,
 	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
 	int retval;
 
-	printk( "xarpcd_usb : Probing for device\n");
+	pr_debug( "xarpcd_usb : Probing for device\n");
 
 	/* allocate memory for our device state and initialize it */
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
@@ -698,11 +704,6 @@ static int xarpcd_probe(struct usb_interface *interface,
 	xarpcd_usb_work_queue = create_workqueue( "xarpcd_usb_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_usb_work, xarpcd_usb_work_handler );
 	queue_delayed_work( xarpcd_usb_work_queue, &xarpcd_usb_work, XARPCD_USB_JIFFIES );
-
-	
-	xarpcd_read_msg( );
-
-	
 
 	return 0;
 

@@ -1,6 +1,19 @@
-obj-m += xarpcd.o 
-xarpcd-objs := xarpcd_main.o xarpcd_socket.o xarpcd_proxy.o xarpcd_usb.o 
-all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+ifneq ($(KERNELRELEASE),)
+include Kbuild
+else
+KDIR ?= /lib/modules/`uname -r`/build
+
+default:
+	$(MAKE) -C $(KDIR) M=$$PWD
+
+install:
+	$(MAKE) -C $(KDIR) M=$$PWD modules_install
+	depmod
+
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	rm -rf *.o .depend .*.cmd *.ko *.mod.c \
+	       modules.order  Module.symvers
+
+.PHONY: default clean
+
+endif
