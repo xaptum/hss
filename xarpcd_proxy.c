@@ -79,7 +79,9 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 
                                         // Creating the answer msg
                                         amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
-                                        amsg->length = sizeof( struct psock_proxy_msg ) + result;
+                                        amsg->length = sizeof( struct psock_proxy_msg );
+                                        if(result > 0)
+                                                amsg->length += result;
                                         amsg->type = F_PSOCK_MSG_ACTION_REPLY;
                                         amsg->msg_id = msg->msg_id;
                                         amsg->sock_id = msg->sock_id;
@@ -98,7 +100,6 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 					int result;
 					struct psock_proxy_msg *amsg; 
 					int datalength = msg->length - sizeof( struct psock_proxy_msg );
-					
 					result = xarpcd_socket_write( msg->sock_id, msg->data, datalength  );
 
                                         // Creating the answer msg
