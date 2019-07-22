@@ -8,6 +8,7 @@
 #include <linux/printk.h>
 #include <linux/net.h>
 #include <net/sock.h>
+#include <linux/kthread.h>
 
 #include <linux/circ_buf.h>
 
@@ -17,7 +18,7 @@
 #define XARPCD_SUCCESS 1
 #define XARPCD_FAIL 0
 
-#define XARPCD_BUFFER_SIZE 16
+#define XARPCD_BUFFER_SIZE 64
 
 #define XARPCD_PROXY_JIFFIES 100
 #define XARPCD_PROXY_COUNT 5
@@ -33,6 +34,36 @@ struct xarpcd_buf_item
 
 static struct workqueue_struct *xarpcd_proxy_work_queue;
 static struct delayed_work xarpcd_work;
+
+int async_read_msg(void *param)
+{
+	int result = 0;
+	const int max_packet_size = 512;
+	void * buf = kzalloc(max_packet_size,GFP_KERNEL);
+	struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+	int sock_id = *((int*)param);
+
+	do
+	{
+		result = xarpcd_socket_blocking_read( sock_id, buf, max_packet_size );
+
+		/* Send the unsolicited data as if it were an answer */
+		if(result >0 )
+		{
+			amsg->length = sizeof( struct psock_proxy_msg ) + result;
+			amsg->type = F_PSOCK_MSG_ASYNC;
+			amsg->msg_id = 0;
+			amsg->sock_id = sock_id;
+			amsg->status = result;
+			amsg->data = buf;
+
+			xarpcd_send_msg( amsg );
+		}
+	} while(result>0);
+	kfree ( buf );
+	kfree ( amsg );
+	return 0;
+}
 
 void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 {
@@ -53,6 +84,7 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
                                         struct sockaddr *addr = msg->data;
                                         int addrlen = msg->length - sizeof( struct psock_proxy_msg );
                                         struct psock_proxy_msg *amsg; 
+
                                         result = xarpcd_socket_connect( msg->sock_id, addr, addrlen );
 
                                         // Creating the answer msg
@@ -114,6 +146,31 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 					kfree( amsg );
 				}
                                 break;
+                        case F_PSOCK_POLL :
+			{
+				struct psock_proxy_msg *amsg;
+				struct task_struct *thread;
+
+				/* TODO keep track of this memory and clean it up */
+				thread = kthread_create(async_read_msg,&msg->sock_id,"xapThr%d",msg->sock_id);
+
+				if(thread)
+				{
+					wake_up_process(thread);
+				}
+
+				/* Acknowledge that we are "polling" */
+				amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+				amsg->length = sizeof( struct psock_proxy_msg );
+				amsg->type = F_PSOCK_MSG_ACTION_REPLY;
+				amsg->msg_id = msg->msg_id;
+				amsg->sock_id = msg->sock_id;
+				amsg->status = 0;
+				xarpcd_send_msg( amsg );
+
+				kfree( amsg );
+			}
+			break;
                         case F_PSOCK_CLOSE :
 				xarpcd_socket_close( msg->sock_id );
                                 // We want to close the socket
@@ -281,7 +338,7 @@ int xarpcd_proxy_push_in_msg( void *msg )
 		in_buffer->head = (head + sizeof( struct xarpcd_buf_item )) & ( XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item ) - 1 );
 		return XARPCD_SUCCESS;
 	}
-	
+
 	return XARPCD_FAIL;	
 }
 

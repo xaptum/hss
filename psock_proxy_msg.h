@@ -23,6 +23,7 @@ typedef enum psock_msg_type
 	F_PSOCK_MSG_ACTION_REQUEST, /**< Msg type for requesting an action to the other side */
 	F_PSOCK_MSG_ACTION_REPLY,   /**< Msg type for replying as a result of a requested action */
 	F_PSOCK_MSG_NONE,	    /**< Empty msg type (can be used to setup communication */
+	F_PSOCK_MSG_ASYNC,
 } psock_msg_type_t;
 
 /**
@@ -34,7 +35,8 @@ typedef enum psock_proxy_action
 	F_PSOCK_CONNECT,
 	F_PSOCK_READ,
 	F_PSOCK_WRITE,
-	F_PSOCK_CLOSE
+	F_PSOCK_CLOSE,
+	F_PSOCK_POLL
 } psock_proxy_action_t;
 
 /**

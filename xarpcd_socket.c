@@ -10,6 +10,7 @@
 #include "psock_proxy_msg.h"
 
 #include "linux/preempt.h"
+#include "linux/socket.h"
 
 /**
  * Struct we use to store our local sockets in a list
@@ -19,6 +20,7 @@ typedef struct xarpcd_socket
 {
 	int sock_id; 			/**< Internal proxy socket_id */
 	struct socket *sock; 		/**< Pointer to the actual socket */
+
 	struct list_head socket_list; 	/**< used for the linked list of sockets  */
 } xarpcd_socket_t;
 
@@ -112,6 +114,35 @@ int xarpcd_socket_connect( int socket_id , struct sockaddr * addr, int addrlen)
 }
 
 /**
+ * Read from socket
+ */
+int xarpcd_socket_blocking_read( int socket_id, void *data, int maxlen )
+{
+        struct xarpcd_socket *sock = NULL;
+        int result = -1;
+	struct msghdr msg;
+	struct kvec vec;
+
+	// Get the socket
+        sock = xarpcd_get_xarpcd_socket( socket_id );
+
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	vec.iov_len = maxlen;
+	vec.iov_base = data;
+
+        if ( sock == NULL )
+        {
+                printk( "xarpcd_socket : Trying to send data to unexisting socket %d\n" , socket_id );
+                return -1;
+        }
+	result = kernel_recvmsg( sock->sock, &msg, &vec, maxlen, maxlen, 0 );
+
+	return result;
+}
+
+/**
  * Write to socket
  */
 int xarpcd_socket_write( int socket_id , void *data, int len )
@@ -168,9 +199,8 @@ int xarpcd_socket_read( int socket_id, void *data, int len )
         }
 
 	result = kernel_recvmsg( sock->sock, &msg, &vec, len, len, 0 );
-	
-	return result;
 
+	return result;
 }
 
 /**

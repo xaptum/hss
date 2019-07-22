@@ -17,6 +17,7 @@ int xarpcd_socket_create( int socket_id );
 int xarpcd_socket_connect( int socket_id, struct sockaddr *addr, int addrlen );
 int xarpcd_socket_write( int socket_id, void* data, int len );
 int xarpcd_socket_read( int socket_id,  void* data,  int len );
+int xarpcd_socket_blocking_read( int socket_id, void *data, int maxlen );
 int xarpcd_socket_close( int socket_id );
 
 
