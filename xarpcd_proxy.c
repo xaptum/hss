@@ -62,7 +62,7 @@ int async_read_msg(void *param)
 	} while(result>0);
 	kfree ( buf );
 	kfree ( amsg );
-	return 0;
+	do_exit(0);
 }
 
 void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
@@ -151,7 +151,7 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 				struct psock_proxy_msg *amsg;
 				struct task_struct *thread;
 
-				/* TODO keep track of this memory and clean it up */
+				/* Create thread to make blocking call */
 				thread = kthread_create(async_read_msg,&msg->sock_id,"xapThr%d",msg->sock_id);
 
 				if(thread)
@@ -340,6 +340,11 @@ int xarpcd_proxy_push_in_msg( void *msg )
 	}
 
 	return XARPCD_FAIL;	
+}
+
+void xarpcd_proxy_shutdown_now( void )
+{
+	xarpcd_socket_close_all();
 }
 
 

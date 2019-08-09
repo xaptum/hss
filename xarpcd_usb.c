@@ -207,7 +207,7 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 	{
 		pr_err( "xarpcd_usb: read_msg_callback with urb->status=%d", 
 			urb->status );
-		goto exit;
+		return;
 	}
 
 	// Finished reading msg
@@ -233,7 +233,6 @@ static void xarpcd_read_msg_callback( struct urb *urb )
 
 	xarpcd_handle_complete_msg( msg );
 
-	exit:
 	// If we get here ready to read next msg
 	xarpcd_read_msg(  );
 		
@@ -320,7 +319,6 @@ int xarpcd_send_msg( struct psock_proxy_msg *msg )
 
 	/* send the data out the bulk port */
 	usb_submit_urb(urb, GFP_KERNEL);
-
 
 	return 0;
 }
@@ -718,6 +716,9 @@ static void xarpcd_disconnect(struct usb_interface *interface)
 {
 	struct usb_xarpcd *dev;
 	int minor = interface->minor;
+
+	/* Tell the proxy to perform an immediate shutdown */
+	xarpcd_proxy_shutdown_now();
 
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);

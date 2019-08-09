@@ -43,8 +43,18 @@ static struct xarpcd_socket *xarpcd_get_xarpcd_socket( int socket_id )
 			return sock;
 		}
 	}
+
 	return NULL;
 
+}
+
+void xarpcd_socket_close_all()
+{
+	while(!list_empty(&socket_list))
+	{
+		xarpcd_socket_t *sock = list_first_entry(&socket_list,xarpcd_socket_t,socket_list);
+		xarpcd_socket_close(sock->sock_id);
+	}
 }
 
 /*******************************************************************************

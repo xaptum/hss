@@ -19,7 +19,7 @@ int xarpcd_socket_write( int socket_id, void* data, int len );
 int xarpcd_socket_read( int socket_id,  void* data,  int len );
 int xarpcd_socket_blocking_read( int socket_id, void *data, int maxlen );
 int xarpcd_socket_close( int socket_id );
-
+void xarpcd_socket_close_all( void );
 
 
 #endif // _XARPCD_SOCKET_H__
