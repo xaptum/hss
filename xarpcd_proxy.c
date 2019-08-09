@@ -26,6 +26,9 @@
 static struct circ_buf *in_buffer;
 static struct circ_buf *out_buffer;
 
+DEFINE_MUTEX(xarpc_in_queue_mutex);
+DEFINE_MUTEX(xarpc_out_queue_mutex);
+
 struct xarpcd_buf_item
 {
 	void *msg;
@@ -48,7 +51,7 @@ int async_read_msg(void *param)
 		result = xarpcd_socket_blocking_read( sock_id, buf, max_packet_size );
 
 		/* Send the unsolicited data as if it were an answer */
-		if(result >0 )
+		if(result >0)
 		{
 			amsg->length = sizeof( struct psock_proxy_msg ) + result;
 			amsg->type = F_PSOCK_MSG_ASYNC;
@@ -105,7 +108,9 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 					int datalength = msg->status;
 					struct psock_proxy_msg *amsg; 
 					char *buf = kmalloc( datalength, GFP_KERNEL );
-					
+
+					printk( KERN_INFO "xarpcd_proxy: Action request F_PSOCK_READ to sock_id=%d \n", msg->sock_id );
+
 					result = xarpcd_socket_read( msg->sock_id, buf, datalength  );
 
 
@@ -266,8 +271,14 @@ int xparcd_proxy_cleanup( void )
 int xarpcd_proxy_pop_in_msg( void **msg )
 {
 	struct xarpcd_buf_item *item;
-	unsigned long head = in_buffer->head;
-	unsigned long tail = in_buffer->tail;
+	unsigned long head;
+	unsigned long tail;
+	int ret = XARPCD_FAIL;
+
+	mutex_lock(&xarpc_in_queue_mutex);
+
+	head = in_buffer->head;
+	tail = in_buffer->tail;
 
 	if ( CIRC_CNT( head, tail, XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item )) >= sizeof( struct xarpcd_buf_item ))
 	{
@@ -275,25 +286,29 @@ int xarpcd_proxy_pop_in_msg( void **msg )
 		*msg = item->msg;
 
 		in_buffer->tail = ( tail + sizeof( struct xarpcd_buf_item )) & ( XARPCD_BUFFER_SIZE * sizeof(struct xarpcd_buf_item ) -1 );
-
-		return XARPCD_SUCCESS;
+		ret = XARPCD_SUCCESS;
 	}
+	mutex_unlock(&xarpc_in_queue_mutex);
 	
-	return XARPCD_FAIL;
+	return ret;
 }
 
 int xarpcd_proxy_push_out_msg( void *msg)
 {
 	struct xarpcd_buf_item *item;
-	unsigned long head = out_buffer->head;
-	unsigned long tail = out_buffer->tail;
+	unsigned long head;
+	unsigned long tail;
 
+	mutex_lock(&xarpc_out_queue_mutex);
+	head = out_buffer->head;
+	tail = out_buffer->tail;
 	if ( CIRC_SPACE( head, tail, XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item )) >= sizeof(struct xarpcd_buf_item ))
 	{
 		item = ( struct xarpcd_buf_item *)(&out_buffer->buf[head]);
 		item->msg = msg;
 		out_buffer->head = ( head + sizeof( struct xarpcd_buf_item )) & ( XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item ) - 1 );
 	}
+	mutex_lock(&xarpc_out_queue_mutex);
 
 	return XARPCD_SUCCESS;
 }
@@ -307,8 +322,13 @@ int xarpcd_proxy_push_out_msg( void *msg)
 int xarpcd_proxy_pop_out_msg( void **msg )
 {
 	struct xarpcd_buf_item *item;
-	unsigned long head = out_buffer->head;
-	unsigned long tail = out_buffer->tail;
+	unsigned long head;
+	unsigned long tail;
+	int ret = XARPCD_FAIL;
+
+	mutex_lock(&xarpc_out_queue_mutex);
+	head = out_buffer->head;
+	tail = out_buffer->tail;
 
 	if ( CIRC_CNT( head, tail, XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item )) >= sizeof(struct xarpcd_buf_item ))
 	{
@@ -317,18 +337,25 @@ int xarpcd_proxy_pop_out_msg( void **msg )
 
 		out_buffer->tail = ( tail + sizeof( struct xarpcd_buf_item )) & ( XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item ) - 1 );
 
-		return XARPCD_SUCCESS;
+		ret = XARPCD_SUCCESS;
 	}
 
-	return XARPCD_FAIL;
+	mutex_lock(&xarpc_out_queue_mutex);
+	return ret;
 }
 
 int xarpcd_proxy_push_in_msg( void *msg )
 {
 	struct xarpcd_buf_item *item;
 
-	unsigned long head = in_buffer->head;
-	unsigned long tail = in_buffer->tail;
+	unsigned long head;
+	unsigned long tail;
+	int ret = XARPCD_FAIL;
+
+	mutex_lock(&xarpc_in_queue_mutex);
+
+	head = in_buffer->head;
+	tail = in_buffer->tail;
 
 	if ( CIRC_SPACE( head, tail, XARPCD_BUFFER_SIZE * sizeof(struct xarpcd_buf_item )) >= sizeof(struct xarpcd_buf_item ) )
 	{
@@ -336,10 +363,13 @@ int xarpcd_proxy_push_in_msg( void *msg )
 		item->msg = msg;
 
 		in_buffer->head = (head + sizeof( struct xarpcd_buf_item )) & ( XARPCD_BUFFER_SIZE * sizeof( struct xarpcd_buf_item ) - 1 );
-		return XARPCD_SUCCESS;
+
+		ret = XARPCD_SUCCESS;
 	}
 
-	return XARPCD_FAIL;	
+	mutex_unlock(&xarpc_in_queue_mutex);
+
+	return ret;	
 }
 
 void xarpcd_proxy_shutdown_now( void )
