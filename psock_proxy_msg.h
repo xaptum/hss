@@ -15,6 +15,8 @@
 
 #define PSOCK_MSG_MAGIC 0xabcd
 
+#define XARPCD_USB_BUFFER_SIZE 512
+
 /**
  * Different types of the msg 
  */

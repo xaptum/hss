@@ -41,7 +41,7 @@ static struct delayed_work xarpcd_work;
 int async_read_msg(void *param)
 {
 	int result = 0;
-	const int max_packet_size = 512;
+	const int max_packet_size = XARPCD_USB_BUFFER_SIZE;
 	void * buf = kzalloc(max_packet_size,GFP_KERNEL);
 	struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
 	int sock_id = *((int*)param);
@@ -158,6 +158,7 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 
 				/* Create thread to make blocking call */
 				thread = kthread_create(async_read_msg,&msg->sock_id,"xapThr%d",msg->sock_id);
+				printk( KERN_INFO "xarpcd_proxy: Action request F_PSOCK_POLL to sock_id=%d \n", msg->sock_id );
 
 				if(thread)
 				{
