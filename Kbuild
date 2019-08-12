@@ -1,2 +1,2 @@
-obj-m += xarpcd.o 
-xarpcd-objs := xarpcd_main.o xarpcd_socket.o xarpcd_proxy.o xarpcd_usb.o psock_proxy_msg.o
+obj-m += xaprc00x.o
+xaprc00x-objs := xaprc00x-main.o xaprc00x-socket.o xaprc00x-proxy.o xaprc00x-usb.o xaprc00x-proxy_msg.o

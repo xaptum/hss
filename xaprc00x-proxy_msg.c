@@ -1,5 +1,5 @@
 #include <linux/kernel.h>
-#include "psock_proxy_msg.h"
+#include "xaprc00x-proxy_msg.h"
 
 void psock_proxy_msg_to_packet(psock_proxy_msg_t *msg, psock_proxy_msg_packet_t *packet)
 {

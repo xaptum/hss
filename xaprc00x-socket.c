@@ -6,8 +6,8 @@
  * @author Jeroen Z
  */
 
-#include "xarpcd_socket.h"
-#include "psock_proxy_msg.h"
+#include "xaprc00x-socket.h"
+#include "xaprc00x-proxy_msg.h"
 
 #include "linux/preempt.h"
 #include "linux/socket.h"

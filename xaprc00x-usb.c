@@ -14,10 +14,10 @@
 #include <linux/usb/cdc.h>
 #include <linux/mutex.h>
 
-#include "psock_proxy_msg.h"
+#include "xaprc00x-proxy_msg.h"
 
-#include "xarpcd_proxy.h"
-#include "xarpcd_usb.h"
+#include "xaprc00x-proxy.h"
+#include "xaprc00x-usb.h"
 
 #define XARPCD_USB_JIFFIES 50
 #define XARPCD_USB_BUFFER 512
