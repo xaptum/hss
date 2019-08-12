@@ -2,8 +2,8 @@
  * Proxy part for the xarpcd kernel module
  */
 
-#include "psock_proxy_msg.h"
-#include "xarpcd_proxy.h"
+#include "xaprc00x-proxy_msg.h"
+#include "xaprc00x-proxy.h"
 
 #include <linux/printk.h>
 #include <linux/net.h>
@@ -12,8 +12,8 @@
 
 #include <linux/circ_buf.h>
 
-#include "xarpcd_socket.h"
-#include "xarpcd_usb.h"
+#include "xaprc00x-socket.h"
+#include "xaprc00x-usb.h"
 
 #define XARPCD_SUCCESS 1
 #define XARPCD_FAIL 0
