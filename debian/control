@@ -1,0 +1,15 @@
+Source: xaprc00x
+Section: kernel
+Priority: optional
+Maintainer: Daniel Berliner <daniel.berliner@xaptum.com>
+Build-Depends: debhelper (>= 9), dkms
+Standards-Version: 3.9.8
+
+Package: xaprc00x-dkms
+Architecture: all
+Depends: ${misc:Depends}
+Description: Kernel driver to proxy TCP traffic from a Xaptum router card
+ to a local network device. 
+ .
+ This package installs the driver source files and configures DKMS
+ to compile the driver for the currently running kernel.
