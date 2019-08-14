@@ -18,6 +18,7 @@
 
 #include "xaprc00x-proxy.h"
 #include "xaprc00x-usb.h"
+#include "xaprc00x-backports.h"
 
 #define XARPCD_USB_JIFFIES 50
 #define XARPCD_USB_BUFFER 512
