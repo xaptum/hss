@@ -2,9 +2,6 @@
  * Proxy part for the xarpcd kernel module
  */
 
-#include "xaprc00x-proxy_msg.h"
-#include "xaprc00x-proxy.h"
-
 #include <linux/printk.h>
 #include <linux/net.h>
 #include <net/sock.h>
@@ -14,6 +11,8 @@
 
 #include "xaprc00x-socket.h"
 #include "xaprc00x-usb.h"
+#include "xaprc00x-proxy_msg.h"
+#include "xaprc00x-proxy.h"
 
 #define XARPCD_SUCCESS 1
 #define XARPCD_FAIL 0
@@ -72,7 +71,6 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 {
         if ( msg->type == F_PSOCK_MSG_ACTION_REQUEST )
         {
-
                 switch ( msg->action )
                 {
                         case F_PSOCK_CREATE:
@@ -199,17 +197,19 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 
 void xarpcd_work_handler( struct work_struct *work )
 {
-	int count = 0;
 	struct psock_proxy_msg *msg;
-	if (  (xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS )
-		&& ( count < XARPCD_PROXY_COUNT) )
+
+	/* Process incoming messages until empty */
+	while((xarpcd_proxy_pop_in_msg( (void **)&msg ) == XARPCD_SUCCESS ))
 	{
 		xarpcd_work_handle_msg( msg );	
 		kfree( msg );
-		count++;
 	}
+}
 
-	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
+void xarpcd_wake_up_in_queue(void)
+{
+	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, 0 );
 }
 
 int xarpcd_proxy_init( void )
@@ -247,7 +247,6 @@ int xarpcd_proxy_init( void )
 	// Setting up the work
 	xarpcd_proxy_work_queue = create_workqueue( "xarpcd_proxy_work_queue" );
 	INIT_DELAYED_WORK( &xarpcd_work, xarpcd_work_handler );
-	queue_delayed_work( xarpcd_proxy_work_queue, &xarpcd_work, XARPCD_PROXY_JIFFIES );
 
 	return XARPCD_SUCCESS;
 }
@@ -369,7 +368,7 @@ int xarpcd_proxy_push_in_msg( void *msg )
 
 	mutex_unlock(&xarpc_in_queue_mutex);
 
-	return ret;	
+	return ret;
 }
 
 void xarpcd_proxy_shutdown_now( void )

@@ -185,7 +185,10 @@ static int xarpcd_flush(struct file *file, fl_owner_t id)
  */
 static void xarpcd_handle_complete_msg( struct psock_proxy_msg *msg )
 {
+	/* Push a message into the queue */
 	xarpcd_proxy_push_in_msg( msg );
+
+	xarpcd_wake_up_in_queue();
 }
 
 
@@ -695,7 +698,6 @@ static int xarpcd_probe(struct usb_interface *interface,
 	dev_info(&interface->dev,
 		 "USB Skeleton device now attached to USBSkel-%d",
 		 interface->minor);
-
 
 	// Initialize the other components
 	xarpcd_proxy_init();
