@@ -43,7 +43,9 @@ int async_read_msg(void *param)
 	const int max_packet_size = 512;
 	void * buf = kzalloc(max_packet_size,GFP_KERNEL);
 	struct psock_proxy_msg *amsg = kmalloc( sizeof (struct psock_proxy_msg), GFP_KERNEL );
+	//Copy and release the socket ID
 	int sock_id = *((int*)param);
+	kfree(param);
 
 	do
 	{
@@ -153,13 +155,22 @@ void xarpcd_work_handle_msg( struct psock_proxy_msg *msg )
 			{
 				struct psock_proxy_msg *amsg;
 				struct task_struct *thread;
+				/* Make sure the message can't be cleared before the thread reads the sock */
+				int *sock_id_ptr = kmalloc(sizeof(int),GFP_KERNEL);
+				*sock_id_ptr = msg->sock_id;
 
 				/* Create thread to make blocking call */
-				thread = kthread_create(async_read_msg,&msg->sock_id,"xapThr%d",msg->sock_id);
+				thread = kthread_create(async_read_msg,sock_id_ptr,"xapThr%d",msg->sock_id);
 
 				if(thread)
 				{
 					wake_up_process(thread);
+				}
+				else
+				{
+					printk(KERN_ERR "xaprc00x-proxy: Async_read_msg thread creation failed for sock_id=%d\n",
+						msg->sock_id);
+					kfree(sock_id_ptr);
 				}
 
 				/* Acknowledge that we are "polling" */
