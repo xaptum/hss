@@ -1,0 +1,163 @@
+\documentclass[10pt]{article}
+\usepackage{bytefield}
+\usepackage[dvipsnames,table,xcdraw]{xcolor}
+\usepackage{adjustbox}
+\usepackage{colortbl}
+\usepackage{amsmath}
+
+\begin{document}
+	\section{Socket Control Model (SCM)}
+	The payload of the USB packet contains any combination of a single SCM packet, 
+	two or more SCM packets or a split SCM packet. SCM transfers can be split across USB packets but shall not be split across USB transfers. 
+	\subsection{SCM Transfer Format}
+	The packet format defines an SCM packet. For information regarding USB packets refer to [USB2.0] specification. Details packets formats can be found in section 8.4 of the [USB2.0] specification. \\
+	\\
+	An SCM packet consists of a 64-bit header and, depending on the command type, a varible length payload of arbitrary data. The length of this payload is indicated in the header.  The payload will always immediately proceed the header. \\
+	\\
+	\centerline {
+		\adjustbox{minipage=0.2\textwidth,cfbox=black,bgcolor=SkyBlue}{
+			\centerline{SCM Header}
+		}\adjustbox{minipage=0.35\textwidth,cfbox=black,bgcolor=LimeGreen}{
+			\centerline {Stream Data}
+		}
+	} \\
+	\subsection{SCM Transfer Types}
+	The SCM packet header contains an opcode field (see section 1.3) to denote whether the transfer is an Immediate or Data type. Immediate types only contain the header while Data types contain a buffer of data immediately proceeding the packet of a length denotated in the header.\\
+
+	\begin{table}[h!]
+		\begin{center}
+			\caption{Your first table.}
+			\label{tab:table1}
+			\begin{tabular}{c|c|c|l} 
+				\rowcolor{lightgray}
+				\textbf{Opcode} &	\textbf{Name} &	\textbf{Type} & \textbf{Purpose}\\
+				\hline
+				0x00 & OPEN & Cmd & Open a socket on the host\\
+				0x01 & CONNECT & Cmd & Connect an open socket to a given address\\
+				0x02 & CLOSE & Cmd & Disconnect and close a socket\\
+				0x03 & WRITE	 & Data & Write data to a connected socket\\
+				0x04 & ACK	& Cmd & Acknowledge a command and indicate success\\
+			\end{tabular}
+		\end{center}
+	\end{table}
+
+	\subsection{SCM Packets} \mbox{}
+	All values in SCM packets are little endian. All IDs and integer values are unsigned unless otherwise denoted. \\
+	\subsubsection{SCM Command Packet}
+	\setcounter{secnumdepth}{5}
+	\paragraph{OPEN} \mbox{}\\
+	The OPEN command is awlays initiated by the device to the host. The device will create a new message ID and new sock ID so the device can identify future operations on these objects.\\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+		\bitheader{0,8,16,24,31} \\
+			\bitbox{8}{0x00} &
+			\bitbox{8}{Message ID} &
+			\bitbox{8}{Sock ID} &
+			\bitbox{8}{Reserved} \\
+			\bitbox{16}{Addr Family} &
+			\bitbox{16}{Protocol} \\
+	\end{bytefield}\\
+	Address Family is the ID used by the Linux kernel in linux/socket.h\\
+	Protocol is the ID used by the Linux kernel in uapi/linux/in.h\\
+	\\
+	ACK will return as a 32-byte signed integer. On success ACK immediate will be 0, on failure the error code returned from the call.
+	
+	\paragraph{CLOSE} \mbox{}\\
+	Disconnects (if connected) and closes a socket using the ID given during creation \\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+		\bitheader{0,8,16,24,31} \\
+		\bitbox{8}{0x02} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{Reserved} \\
+		\bitbox{32}{Unused}\\
+	\end{bytefield}\\
+	On success ACK immediate will be 0, on failure the error code returned from the call.
+	
+	\paragraph{CONNECT} \mbox{}\\
+	ACK will return as a 32-byte signed integer. Connect tells the host to connect a created socket to a given address. The address information is just the sockaddr defined in linux/socket.h\\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+		\bitheader{0,8,16,24,30,31} \\
+		\bitbox{8}{0x01} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{Reserved} \\
+		\bitbox{16}{Address Family} &
+		\bitbox{14}{Protocol Addr} &
+		\bitbox{2}{} \\
+		\bitbox[t]{30}{}
+		\bitbox[t]{1}{$\underbrace{\hspace{0.5em}}_{\text{\normalsize Unused}}$}
+	\end{bytefield}\\
+	\\
+	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call. \\
+	\\
+	\paragraph{ACK} \mbox{}\\
+	Upon completion of a message the reciever will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has recieved the message. \\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+	\bitheader{0,8,16,24,31} \\
+	\bitbox{8}{0x04} &
+	\bitbox{8}{Message ID} &
+	\bitbox{8}{Sock ID} &
+	\bitbox{8}{Reserved} \\
+	\bitbox{32}{See ACK section on commands}\\
+	\end{bytefield}\\
+
+	\subsubsection{SCM Data Packet}
+	\paragraph{WRITE} \mbox{}\\
+	Sends stream data over a connected socket. This command can be sent by either side \\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+		\bitheader{0,8,16,24,31} \\
+			\bitbox{8}{0x03} &
+			\bitbox{8}{Message ID} &
+			\bitbox{8}{Sock ID} &
+			\bitbox{8}{Reserved} \\
+			\bitbox{32}{Payload Length in bytes} \\
+			\wordbox[tlr]{2}{Payload data...} \\
+			\bitbox[t]{32}{}
+	\end{bytefield}\\
+	\\
+	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the reciever needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
+	\\
+	\subsection{SCM Packet Structure}
+	\begin{bytefield}[bitwidth=1.1em]{32}
+		\bitheader{0,8,16,24,31} \\
+		\begin{rightwordgroup}{Command \\
+				Info}
+			\bitbox{8}{Command Type} &
+			\bitbox{8}{Message ID} &
+			\bitbox{8}{Sock ID} &
+			\bitbox{8}{Reserved} \\
+			\bitbox{32}{Immediate / Payload Length}
+		\end{rightwordgroup}
+		\\
+		\begin{rightwordgroup}{Command \\
+				Payload}
+			\wordbox[tlr]{3}{Payload data} \\
+			\bitbox[blr]{32}{}
+		\end{rightwordgroup}
+	\end{bytefield}
+	
+	\subsection{SCM Packet Structure (alt)} \mbox{}
+	This is a bit less flexible and would make connect a data command. I also see scenarios where we may need larger ACK messages than 20 bytes long. \\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+	 \bitheader{0,4,8,12,31} \\
+	 \begin{rightwordgroup}{Command \\
+	   Info}
+	\bitbox{4}{Op Code} &
+	\bitbox{4}{Msg ID}&
+	\bitbox{4}{Sock ID} &
+	\bitbox{20}{Immediate / Payload Length}
+	 \end{rightwordgroup}
+	 \\
+	 \begin{rightwordgroup}{Command \\
+	   Payload}
+	  \wordbox[tlr]{3}{Payload (Data commands only)} \\
+	  \bitbox[blr]{32}{}
+	 \end{rightwordgroup}
+	\end{bytefield}
+\end{document}
