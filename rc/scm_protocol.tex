@@ -107,7 +107,19 @@
 	\\
 	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{CONNECT} \mbox{}\\
-	Connect tells the host to connect a created socket to a given address. The address information is just the sockaddr defined in linux/socket.h\\
+	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
+	\begin{table}[h!]
+		\begin{center}
+			\caption{Connection payload struct defs.}
+			\label{tab:table2}
+			\begin{tabular}{c|c|c|l} 
+				\rowcolor{lightgray}
+				\textbf{Family} &	\textbf{Protocol} &	\textbf{Header} & \textbf{Struct name}\\
+				\hline
+				IPv4 & TCP & sockaddr\_in & linux/socket.h\\
+			\end{tabular}
+		\end{center}
+	\end{table}
 	\\
 	\begin{bytefield}[bitwidth=1.1em]{32}
 		\bitheader{0,8,16,24,30,31} \\
@@ -116,18 +128,11 @@
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{Reserved} \\
 		\bitbox{32}{Length} \\
-		\bitbox{16}{Family} &
-		\bitbox{16}{Address}\\
-		\bitbox{32}{Address (cont...)}\\
-		\bitbox{32}{Address (cont...)}\\
+		\bitbox{32}{Address}\\
 		\bitbox{32}{Address (cont...)}
 	\end{bytefield}\\
 	\\
-	Address will vary by protocol type but host and device are expected to use the same address types. IPv4 TCP connections use struct \colorbox{lightgray}{\lstinline{sockaddr\_in}} from \colorbox{lightgray}{\lstinline{include/uapi/linux/in.h}}.
-	\\
-	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call. \\
-	\\
-	Note: The Address has a maximum length of 14 bytes.\\
+	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call.
 	\paragraph{WRITE} \mbox{}\\
 	Sends stream data over a connected socket. This command can be sent by either side.\\
 	\\
