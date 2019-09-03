@@ -70,8 +70,8 @@
 			\bitbox{16}{Addr Family} &
 			\bitbox{16}{Protocol} \\
 	\end{bytefield}\\
-	Address Family is the ID used by the Linux kernel in linux/socket.h\\
-	Protocol is the ID used by the Linux kernel in uapi/linux/in.h\\
+	Address Family is the ID used by the Linux kernel in \colorbox{lightgray}{\lstinline{linux/socket.h}}\\
+	Protocol is the ID used by the Linux kernel in \colorbox{lightgray}{\lstinline{uapi/linux/in.h}}\\
 	\\
 	ACK will return as a 32-byte signed integer. On success ACK immediate will be 0, on failure the error code returned from the call.
 	
@@ -122,6 +122,8 @@
 		\bitbox{32}{Address (cont...)}\\
 		\bitbox{32}{Address (cont...)}
 	\end{bytefield}\\
+	\\
+	Address will vary by protocol type but host and device are expected to use the same address types. IPv4 TCP connections use struct \colorbox{lightgray}{\lstinline{sockaddr\_in}} from \colorbox{lightgray}{\lstinline{include/uapi/linux/in.h}}.
 	\\
 	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call. \\
 	\\
