@@ -7,6 +7,8 @@
 \usepackage{pgf}
 \usepackage{tikz}
 \usepackage{color,listings}
+\usepackage{float}
+\usepackage{fancyhdr}
 
 \begin{document}
 	\section{Socket Control Model (SCM)}
@@ -108,31 +110,68 @@
 	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
-	\begin{table}[h!]
-		\begin{center}
-			\caption{Connection payload struct defs.}
-			\label{tab:table2}
-			\begin{tabular}{c|c|c|l} 
-				\rowcolor{lightgray}
-				\textbf{Family} &	\textbf{Protocol} &	\textbf{Header} & \textbf{Struct name}\\
-				\hline
-				IPv4 & TCP & sockaddr\_in & linux/socket.h\\
-			\end{tabular}
-		\end{center}
-	\end{table}
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Family.}
+		\label{tab:table2}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & IP\\
+			0x02 & IP6\\
+		\end{tabular}
+	\end{center}
+	\end{table} \mbox{}\\
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Protocol.}
+		\label{tab:table3}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & TCP\\
+			0x02 & UDP\\
+		\end{tabular}
+	\end{center}
+	\end{table} \mbox{}
 	\\
+	\textbf{IP Connect Packet}\\
 	\begin{bytefield}[bitwidth=1.1em]{32}
-		\bitheader{0,8,16,24,30,31} \\
+		\bitheader{0,8,16,24,32} \\
 		\bitbox{8}{0x01} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{Reserved} \\
-		\bitbox{32}{Length} \\
-		\bitbox{32}{Address}\\
-		\bitbox{32}{Address (cont...)}
+		\bitbox{32}{0x10} \\
+		\bitbox{8}{0x00} &
+		\bitbox{8}{Protocol} &
+		\bitbox{16}{Port in Network Byte Order\footnotemark}\\
+		\bitbox{32}{IP Address in Network Byte Order}
+	\end{bytefield}\\
+	\footnotetext{POSIX functions expect the address and port to be in network byte order regardless of the host byte order.}
+	\\
+	\textbf{IP6 Connect Packet}\\
+	\\
+	\begin{bytefield}[bitwidth=1.1em]{32}
+	\bitheader{0,8,16,24,32} \\
+	\bitbox{8}{0x01} &
+	\bitbox{8}{Message ID} &
+	\bitbox{8}{Sock ID} &
+	\bitbox{8}{Reserved} \\
+	\bitbox{32}{0x24} \\
+	\bitbox{8}{0x01} &
+	\bitbox{8}{Protocol} &
+	\bitbox{16}{Port in Network Byte Order}\\
+	\bitbox{32}{flowinfo} \\
+	\bitbox{32}{Scope ID} \\
+	\bitbox{32}{IP6 Addr In Network Byte Order} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
 	\\
-	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call.
 	\paragraph{WRITE} \mbox{}\\
 	Sends stream data over a connected socket. This command can be sent by either side.\\
 	\\
