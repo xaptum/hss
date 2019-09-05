@@ -111,10 +111,13 @@
 	In this specification, the word ‘shall’ or ‘must’ is used for mandatory requirements, the word
 	‘should’ is used to express recommendations and the word ‘may’ is used for options. 
 	\section{Overview}
-	Socket Control Model (SCM) is a specification for efficent transport of IP frames across the USB bus, allowing a device to act as if it has control over it's hosts socket. SCM prepends the IP frame with a small header to enable contatenation of frames within a USB transfer. This module requires implementaitons for each suported Internet and Transport layer protocols, but other layers are beyond its scope.
+	Socket Control Model (SCM) is a specification for efficent management of sockets on a host by its devices. SCM sends Application Layer traffic and internal socket management commands from the device to the host over USB. This module requires host implementaitons for each suported Network and Transport layer protocols, but other layers are beyond its scope.
 	\subsection{What is Socket Control Module (SCM)?}
-	SCM allows a USB connected device to create a socket which behaves like a regular INET/6 socket to applications but transparently uses a corresponding socket on the host to communicate over a network. Prior to SCM, specialized interfaces would have to be created to give internet access to connected devices. Utilizing SCM provides a generic way to accomplish this at an internet protocol level. \\
-	
+	SCM allows a USB connected device to remotely create and control sockets on its host. A device may only control sockets it has created, and it shall expect exclusive control over this socket. Devices cannot control sockets created by other devices on the same host, and the host will not expose a devices socket for use by other applications.\\
+	\\
+	Prior to SCM, connected devices would have to be assigned an IP address requiring the host to bridge the device or use NAT which also requires userspace configurations to the host. SCM allows a host to act on behalf of its device and provice it's network connection in a truly plug and play manner. This implicitly subjects the device to the same firewall rules and external network considerations without specific configuration.\\
+	\\
+	The below figure illustrates a possible use case where a new socket type (Sock 1) is created on the device to interface with SCM. This allows userspace applications to interact with a standard protocol. 
 	\begin{figure}[H]
 		\begin{center}
 			\caption[SCM Overview]{SCM Overview.}
