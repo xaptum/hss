@@ -91,7 +91,11 @@
 	\mainmatter
 	\section{Introduction}
 	\subsection{Purpose}
-	The Socket Control Module (SCM) Subclass is a protocol by which USB hosts and devices can efficently stream IP traffic over sockets. 
+	The Socket Control Module (SCM) subclass is a protocol by which USB devices can efficiently manage and use Berkeley/POSIX-style sockets on the host.\\
+	\\
+	The specification currently defines support for the INET (IPv4) and INET6 (IPv6) protocol families and the TCP and UDP protocols. Future versions may add support for additional families and protocols.\\
+	\\
+	This protocol offers an alternative method for a device to communicate with remote servers. Existing approaches that operate at the L3 layer (IP/USB) or L2 layer (CDC ECM, EEM, NCM) have several disadvantages.  In particular, they require the device to be assigned an IP address.  Since many networks will assign only a single IP address to a host, this requires implementing some form of network address translation (NAT) on the host.  Setting up the NAT requires userspace configuration in most operating systems, so the USB device is no longer truly plug and play.
 	\subsection{Scope}
 	This document specifies new device subclasses intended for use with Communication devices,
 	based on the Universal Serial Bus Class Definitions for Communication Devices specification
