@@ -171,7 +171,7 @@
 	\subsubsection{Common Fields}
 	\begin{enumerate}
 		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows.
-		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the reciever to identify the recieved message when replying. This is always genrated by the sender, and the reciever may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
+		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
 		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
 	\end{enumerate}
 	\subsubsection{SCM Command Packet}
@@ -208,7 +208,7 @@
 	On success ACK immediate will be 0, on failure the error code returned from the call (host to device only).
 	\\
 	\paragraph{ACK} \mbox{}\\
-	Upon completion of a message the reciever will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has recieved the message. \\
+	Upon completion of a message the receiver will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has received the message. \\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 	\bitheader{0,8,16,24,31} \\
@@ -221,7 +221,7 @@
 	\subsubsection{SCM Data Packet} \mbox{}
 	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. 
 	The data segment of specific commands may represent structures with endianness, all fields are individually converted to little endian 
-	before sending and converted back when recieved. \\
+	before sending and converted back when received. \\
 	\\
 	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{CONNECT} \mbox{}\\
@@ -302,7 +302,7 @@
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\\
-	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the reciever needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
+	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the receiver needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
 	\\
 	\paragraph{REPLY} \mbox{}\\
 	Similar to ACK but contains a data field for internal processing.  \\
@@ -318,12 +318,13 @@
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\section{Packet Processing}
-	Fig A describes the process for the reciever on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
+	Fig A describes the process for the receiver on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
 	\\	
-	\subsection{Packet Processing Flow}
+	\subsection{Processing Flow}
+	\subsubsection{Receiving SCM Packets From USB}
 	\begin{figure}[H]
 	\begin{center}
-		\caption[SCM Packet Recieve Flow]{SCM Packet Recieve Flow.}
+		\caption[SCM Packet receive Flow]{SCM Packet receive Flow.}
 		\input{figA.tex}
 	\end{center}
 	\end{figure}
