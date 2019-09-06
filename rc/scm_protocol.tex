@@ -1,4 +1,4 @@
-\documentclass[pstricks,border=12pt,10pt]{article}
+\documentclass[10pt]{article}
 \usepackage{bytefield}
 \usepackage[dvipsnames,table,xcdraw]{xcolor}
 \usepackage{adjustbox}
@@ -7,8 +7,126 @@
 \usepackage{pgf}
 \usepackage{tikz}
 \usepackage{color,listings}
+\usepackage{float}
+\usepackage{fancyhdr}
+\usepackage{lmodern}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{setspace}
+\usepackage{changepage}
+\usepackage{adjustbox}
+\usepackage{lastpage}
+
+
+\pagestyle{fancy}
+\fancyhf{}
+\lfoot{\thepage}
+\rfoot{September 4, 2019}
+
+\def\frontmatter{%
+	\pagenumbering{roman}
+	\setcounter{page}{1}
+	\renewcommand{\thesection}{\Roman{section}}
+}%
+
+\def\mainmatter{%
+	\pagenumbering{arabic}
+	\setcounter{page}{1}
+	\setcounter{section}{0}
+	\renewcommand{\thesection}{\arabic{section}}
+}%
+
+\def\backmatter{%
+	\setcounter{section}{0}
+	\renewcommand{\thesection}{\Alph{section}}
+}%
 
 \begin{document}
+\frontmatter
+\linespread{1.5}
+{\Huge\bfseries  
+	\begin{adjustwidth}{100pt}{0pt}
+		\begin{flushright}
+		\textbf{Universal Serial Bus Communications Class Subclass Specifications for Socket Management Protocol}\\
+		~\\
+		Revision 0.1\\
+		September 4, 2019
+	\end{flushright}\end{adjustwidth}\par}
+	\clearpage
+	{\huge\textbf{Revision History}}\\
+	\begin{table}[h!]
+		\caption{Revision History}
+		\begin{adjustbox}{width=\columnwidth,center}
+			\label{tab:revHistory}
+			\begin{tabular}{|c|c|p{10cm}|} 
+				\rowcolor{lightgray}
+				\textbf{Version} &	\textbf{Date} &	\textbf{Comments}\\
+				\hline
+				1.0 & TBD & Initial Release\\
+				\hline
+			\end{tabular}
+		\end{adjustbox}
+	\end{table}
+	\clearpage
+	
+	{\huge\textbf{Contributors}}\\
+	\begin{table}[h!]
+		\large
+		\label{tab:contrib}
+		\renewcommand{\arraystretch}{2.0}
+		\begin{tabular}{l l} 
+			Daniel Berliner & Xaptum\\
+			David Bild & Xaptum\\
+		\end{tabular}
+	\end{table}
+	\clearpage
+	
+	\tableofcontents
+	
+	\listoffigures
+	
+	\listoftables
+	
+	\clearpage
+	
+	\mainmatter
+	\section{Introduction}
+	\subsection{Purpose}
+	The Socket Control Module (SCM) subclass is a protocol by which USB devices can efficiently manage and use Berkeley/POSIX-style sockets on the host.\\
+	\\
+	The specification currently defines support for the INET (IPv4) and INET6 (IPv6) protocol families and the TCP and UDP protocols. Future versions may add support for additional families and protocols.\\
+	\\
+	This protocol offers an alternative method for a device to communicate with remote servers. Existing approaches that operate at the L3 layer (IP/USB) or L2 layer (CDC ECM, EEM, NCM) have several disadvantages.  In particular, they require the device to be assigned an IP address.  Since many networks will assign only a single IP address to a host, this requires implementing some form of network address translation (NAT) on the host.  Setting up the NAT requires userspace configuration in most operating systems, so the USB device is no longer truly plug and play.
+	\subsection{Scope}
+	This document specifies new device subclasses intended for use with Communication devices,
+	based on the Universal Serial Bus Class Definitions for Communication Devices specification
+	[USBCDC]. \\
+	\\
+	The intention of this specification is that all material presented here be upwards-compatible
+	extensions of the [USBCDC] specification. New numeric codes are defined for subclass codes,
+	protocol codes, management elements, and notification elements. \\
+	\\
+	In some cases material from [USBCDC] is repeated for clarity. In such cases, [USBCDC] shall be
+	treated as the controlling document. \\
+	\\
+	In this specification, the word ‘shall’ or ‘must’ is used for mandatory requirements, the word
+	‘should’ is used to express recommendations and the word ‘may’ is used for options. 
+	\section{Overview}
+	Socket Control Model (SCM) is a specification for efficent management of sockets on a host by its devices. SCM sends Application Layer traffic and internal socket management commands from the device to the host over USB. This module requires host implementaitons for each suported Network and Transport layer protocols, but other layers are beyond its scope.
+	\subsection{What is Socket Control Module (SCM)?}
+	SCM allows a USB connected device to remotely create and control sockets on its host. A device may only control sockets it has created, and it shall expect exclusive control over this socket. Devices cannot control sockets created by other devices on the same host, and the host will not expose a devices socket for use by other applications.\\
+	\\
+	Prior to SCM, connected devices would have to be assigned an IP address requiring the host to bridge the device or use NAT which also requires userspace configurations to the host. SCM allows a host to act on behalf of its device and provice it's network connection in a truly plug and play manner. This implicitly subjects the device to the same firewall rules and external network considerations without specific configuration.\\
+	\\
+	The below figure illustrates a possible use case where a new socket type (Sock 1) is created on the device to interface with SCM. This allows userspace applications to interact with a standard protocol. 
+	\begin{figure}[H]
+		\begin{center}
+			\caption[SCM Overview]{SCM Overview.}
+			\scalebox{0.9}{\input{SCMDepiction.tex}}
+		\end{center}
+	\end{figure}
+
+	\subsection{USB Endpoints}
+	SCM's endpoint requirements consist soley of a bulk pair (In and Out). Socket commands are not transmitted over control endpoints becuase they are not controlling USB functions and they must arrive in order with writes.
 	\section{Socket Control Model (SCM)}
 	The payload of the USB packet contains any combination of a single SCM packet, 
 	two or more SCM packets or a split SCM packet. SCM transfers can be split across USB packets but shall not be split across USB transfers. 
@@ -53,7 +171,7 @@
 	\subsubsection{Common Fields}
 	\begin{enumerate}
 		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows.
-		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the reciever to identify the recieved message when replying. This is always genrated by the sender, and the reciever may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
+		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
 		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
 	\end{enumerate}
 	\subsubsection{SCM Command Packet}
@@ -61,7 +179,7 @@
 	\paragraph{OPEN} \mbox{}\\
 	The OPEN command is awlays initiated by the device to the host. The device will create a new message ID and new sock ID so the device can identify future operations on these objects.\\
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
+	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 			\bitbox{8}{0x00} &
 			\bitbox{8}{Message ID} &
@@ -79,7 +197,7 @@
 	When sent from device to host, disconnects (if connected) and closes a socket using the ID given during creation.
 	If sent from host to device this will serve as a notification that the socket has been closed by the remote peer. \\
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
+	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 		\bitbox{8}{0x02} &
 		\bitbox{8}{Message ID} &
@@ -90,9 +208,9 @@
 	On success ACK immediate will be 0, on failure the error code returned from the call (host to device only).
 	\\
 	\paragraph{ACK} \mbox{}\\
-	Upon completion of a message the reciever will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has recieved the message. \\
+	Upon completion of a message the receiver will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has received the message. \\
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
+	\begin{bytefield}[bitwidth=1.7em]{32}
 	\bitheader{0,8,16,24,31} \\
 	\bitbox{8}{0x04} &
 	\bitbox{8}{Message ID} &
@@ -103,40 +221,77 @@
 	\subsubsection{SCM Data Packet} \mbox{}
 	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. 
 	The data segment of specific commands may represent structures with endianness, all fields are individually converted to little endian 
-	before sending and converted back when recieved. \\
+	before sending and converted back when received. \\
 	\\
 	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
-	\begin{table}[h!]
-		\begin{center}
-			\caption{Connection payload struct defs.}
-			\label{tab:table2}
-			\begin{tabular}{c|c|c|l} 
-				\rowcolor{lightgray}
-				\textbf{Family} &	\textbf{Protocol} &	\textbf{Header} & \textbf{Struct name}\\
-				\hline
-				IPv4 & TCP & sockaddr\_in & linux/socket.h\\
-			\end{tabular}
-		\end{center}
-	\end{table}
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Family.}
+		\label{tab:table2}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & IP\\
+			0x02 & IP6\\
+		\end{tabular}
+	\end{center}
+	\end{table} \mbox{}\\
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Protocol.}
+		\label{tab:table3}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & TCP\\
+			0x02 & UDP\\
+		\end{tabular}
+	\end{center}
+	\end{table} \mbox{}
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
-		\bitheader{0,8,16,24,30,31} \\
+	\textbf{IP Connect Packet}\\
+	\begin{bytefield}[bitwidth=1.7em]{32}
+		\bitheader{0,8,16,24,32} \\
 		\bitbox{8}{0x01} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{Reserved} \\
-		\bitbox{32}{Length} \\
-		\bitbox{32}{Address}\\
-		\bitbox{32}{Address (cont...)}
+		\bitbox{32}{0x10} \\
+		\bitbox{8}{0x00} &
+		\bitbox{8}{Protocol} &
+		\bitbox{16}{Port in Network Byte Order\footnotemark}\\
+		\bitbox{32}{IP Address in Network Byte Order}
+	\end{bytefield}\\
+	\footnotetext{POSIX.1-2017 expects the address and port to be in network byte order regardless of the host byte order.}
+	\\
+	\textbf{IP6 Connect Packet}\\
+	\\
+	\begin{bytefield}[bitwidth=1.7em]{32}
+	\bitheader{0,8,16,24,32} \\
+	\bitbox{8}{0x01} &
+	\bitbox{8}{Message ID} &
+	\bitbox{8}{Sock ID} &
+	\bitbox{8}{Reserved} \\
+	\bitbox{32}{0x24} \\
+	\bitbox{8}{0x01} &
+	\bitbox{8}{Protocol} &
+	\bitbox{16}{Port in Network Byte Order}\\
+	\bitbox{32}{flowinfo} \\
+	\bitbox{32}{Scope ID} \\
+	\bitbox{32}{IP6 Addr In Network Byte Order} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+	\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
 	\\
-	ACK will return as a 32-byte signed integer.  On success ACK immediate will be 0, on failure the error code returned from the call.
 	\paragraph{WRITE} \mbox{}\\
 	Sends stream data over a connected socket. This command can be sent by either side.\\
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
+	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 			\bitbox{8}{0x03} &
 			\bitbox{8}{Message ID} &
@@ -147,12 +302,12 @@
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\\
-	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the reciever needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
+	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the receiver needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
 	\\
 	\paragraph{REPLY} \mbox{}\\
 	Similar to ACK but contains a data field for internal processing.  \\
 	\\
-	\begin{bytefield}[bitwidth=1.1em]{32}
+	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 		\bitbox{8}{0x05} &
 		\bitbox{8}{Message ID} &
@@ -163,10 +318,15 @@
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\section{Packet Processing}
-	Fig A describes the process for the reciever on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
+	Fig A describes the process for the receiver on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
 	\\	
-	\subsection{Packet Processing Flow (Fig. A)}
-	\label{Fig. A}
-	\scalebox{0.6}{\input{figA.tex}}
+	\subsection{Processing Flow}
+	\subsubsection{Receiving SCM Packets From USB}
+	\begin{figure}[H]
+	\begin{center}
+		\caption[SCM Packet receive Flow]{SCM Packet receive Flow.}
+		\input{figA.tex}
+	\end{center}
+	\end{figure}
 	
 \end{document}
