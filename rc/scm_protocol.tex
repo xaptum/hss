@@ -126,52 +126,84 @@
 	\end{figure}
 
 	\subsection{USB Endpoints}
-	SCM's endpoint requirements consist soley of a bulk pair (In and Out). Socket commands are not transmitted over control endpoints becuase they are not controlling USB functions and they must arrive in order with writes.
+	SCM's endpoint requirements consist of a bulk pair (In and Out) and command pair (In and Out). 
+	The SCM Device Class uses the standard Endpoint descriptor, as defined in chapter 9 of the USB
+	Specification. \\
+	Additionally, SCM requires a pair of bulk-in/bulk-out endpoints and a control-in endpoint for recieving commands.
 	\section{Socket Control Model (SCM)}
 	The payload of the USB packet contains any combination of a single SCM packet, 
 	two or more SCM packets or a split SCM packet. SCM transfers can be split across USB packets but shall not be split across USB transfers. 
-	\subsection{SCM Transfer Format}
+	\subsection{SCM Packet Format}
 	The packet format defines an SCM packet. For information regarding USB packets refer to [USB2.0] specification. Details packets formats can be found in section 8.4 of the [USB2.0] specification. \\
 	\\
-	An SCM packet consists of a 64-bit header and, depending on the command type, a varible length payload of arbitrary data. The length of this payload is indicated in the header.  The payload will always immediately proceed the header. \\
+	All SCM packets begin with a one-byte opcode (see Table~\ref{tab:table1}), a one-byte message ID and a one-byte Socket ID. \\
 	\\
-	\centerline {
-		\adjustbox{minipage=0.2\textwidth,cfbox=black,bgcolor=SkyBlue}{
-			\centerline{SCM Header}
-		}\adjustbox{minipage=0.35\textwidth,cfbox=black,bgcolor=LimeGreen}{
-			\centerline {Stream Data}
-		}
-	} \\
-	\subsection{SCM Transfer Types}
-	The SCM packet header contains an opcode field (see section 1.3) to denote whether the transfer is an Immediate or Data type. Immediate types only contain the header while Data types contain a buffer of data immediately proceeding the packet of a length denotated in the header.\\
-
+	While represented differently, both types of SCM packets will indicate the length of data being sent and then the data being sent. A packets data segment will always immediately proceed the header and this packet will always be sent in one USB transfer (although USB may split the SCM packet into many USB packets). \\
+	\\
+	\begin{figure}[H]
+		\caption[SCM Packet header and data.]{SCM Packet header and data.}
+			\centerline {
+			\adjustbox{minipage=0.2\textwidth,cfbox=black,bgcolor=SkyBlue}{
+				\centerline{SCM Header}
+			}\adjustbox{minipage=0.35\textwidth,cfbox=black,bgcolor=LimeGreen}{
+				\centerline {Data...}
+			}
+		} 
+	\end{figure}
 	\begin{table}[h!]
 		\begin{center}
-			\caption{Your first table.}
+			\caption{OP Codes}
 			\label{tab:table1}
 			\begin{tabular}{c|c|c|l} 
 				\rowcolor{lightgray}
 				\textbf{Opcode} &	\textbf{Name} &	\textbf{Type} & \textbf{Purpose}\\
 				\hline
 				0x00 & OPEN & Cmd & Open a socket on the host\\
-				0x01 & CONNECT & Data & Connect an open socket to a given address\\
-				0x02 & CLOSE & Cmd & Disconnect and close a socket\\
-				0x03 & WRITE	 & Data & Write data to a connected socket\\
+				0x01 & CONNECT & Cmd & Connect an open socket to a given address\\
+				0x02 & SHUTDOWN & Cmd & Indicates that the sender will not send any more traffic.\\
+				0x03 & TRANSMIT & Data & Write data to a connected socket\\
 				0x04 & ACK	& Cmd & Acknowledge a command and indicate success\\
-				0x05 & REPLY	& Data & Similar to ACK but contains data. \\
+				0x05 & ACKDATA	& Data & Similar to ACK but contains data. \\
+				0x06 & CLOSE	& Cmd & Close the socket. \\
 			\end{tabular}
 		\end{center}
 	\end{table}
-
-	\subsection{SCM Packets} \mbox{}
-	All values in SCM packets are little endian. All IDs and integer values are unsigned unless otherwise denoted.
+	\subsection{SCM Packet Types}
+	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
 	\subsubsection{Common Fields}
+	All SCM packets begin with the following three bytes:\\
 	\begin{enumerate}
-		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows.
+		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
 		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
 		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
 	\end{enumerate}
-	\subsubsection{SCM Command Packet}
+	While represented differently, both packets also include a length parameter indicating how much data follows the header. Both length fields are the length of the payload, not including the header. 
+	\subsubsection{Command}
+	SCM Command operations relate to opening, closing and managing sockets across USB. These requests are infrequent and short in length so they do not need to be mixed with larger data transmissions that can take a long time to process. Command packets are always sent over the USB Control EP and have a maximum length of 64 bytes including the header.\\
+	\\
+	\begin{bytefield}[bitwidth=1.7em]{32}
+		\bitheader{0,8,16,24,31} \\
+		\bitbox{8}{Op Code} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{Length} \\
+		\bitbox{32}{Data (Up to 60 bytes)...} \\
+	\end{bytefield}\\ 
+	\subsubsection{Data}
+	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 64 bytes.\\
+	\\
+	\begin{bytefield}[bitwidth=1.7em]{32}
+		\bitheader{0,8,16,24,31} \\
+		\bitbox{8}{Op Code} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{Unused} \\
+		\bitbox{32}{Payload Length} \\
+		\bitbox{32}{Payload Data...} \\
+	\end{bytefield}\\
+	\subsection{SCM Packets} \mbox{}
+	All values in SCM packets are little endian unless otherwise noted. All IDs and integer values are unsigned unless otherwise noted.
+	\subsubsection{SCM Command Packet Formats}
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
 	The OPEN command is awlays initiated by the device to the host. The device will create a new message ID and new sock ID so the device can identify future operations on these objects.\\
@@ -181,7 +213,7 @@
 			\bitbox{8}{0x00} &
 			\bitbox{8}{Message ID} &
 			\bitbox{8}{Sock ID} &
-			\bitbox{8}{Reserved} \\
+			\bitbox{8}{0x04} \\
 			\bitbox{16}{Addr Family} &
 			\bitbox{16}{Protocol} \\
 	\end{bytefield}\\
@@ -196,12 +228,14 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{0x02} &
+		\bitbox{8}{0x06} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Reserved} \\
+		\bitbox{8}{Command Length} \\
 		\bitbox{32}{Exit Code (device to host only)}\\
 	\end{bytefield}\\
+	Length will be 0 when the host is sending to device, 0x04 when device is sending to host. \\
+	\\
 	On success ACK immediate will be 0, on failure the error code returned from the call (host to device only).
 	\\
 	\paragraph{ACK} \mbox{}\\
@@ -212,52 +246,46 @@
 	\bitbox{8}{0x04} &
 	\bitbox{8}{Message ID} &
 	\bitbox{8}{Sock ID} &
-	\bitbox{8}{Reserved} \\
+	\bitbox{8}{Length} \\
 	\bitbox{32}{See ACK section on commands}\\
 	\end{bytefield}\\
-	\subsubsection{SCM Data Packet} \mbox{}
-	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. 
-	The data segment of specific commands may represent structures with endianness, all fields are individually converted to little endian 
-	before sending and converted back when received. \\
-	\\
-	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
 	\begin{table}[H]
-	\begin{center}
-		\caption{Values for Family.}
-		\label{tab:table2}
-		\begin{tabular}{c|c} 
-			\rowcolor{lightgray}
-			\textbf{ID} &	\textbf{Name}\\
-			\hline
-			0x01 & IP\\
-			0x02 & IP6\\
-		\end{tabular}
-	\end{center}
+		\begin{center}
+			\caption{Values for Family.}
+			\label{tab:table2}
+			\begin{tabular}{c|c} 
+				\rowcolor{lightgray}
+				\textbf{ID} &	\textbf{Name}\\
+				\hline
+				0x01 & IP\\
+				0x02 & IP6\\
+			\end{tabular}
+		\end{center}
 	\end{table} \mbox{}\\
 	\begin{table}[H]
-	\begin{center}
-		\caption{Values for Protocol.}
-		\label{tab:table3}
-		\begin{tabular}{c|c} 
-			\rowcolor{lightgray}
-			\textbf{ID} &	\textbf{Name}\\
-			\hline
-			0x01 & TCP\\
-			0x02 & UDP\\
-		\end{tabular}
-	\end{center}
+		\begin{center}
+			\caption{Values for Protocol.}
+			\label{tab:table3}
+			\begin{tabular}{c|c} 
+				\rowcolor{lightgray}
+				\textbf{ID} &	\textbf{Name}\\
+				\hline
+				0x01 & TCP\\
+				0x02 & UDP\\
+			\end{tabular}
+		\end{center}
 	\end{table} \mbox{}
 	\\
 	\textbf{IP Connect Packet}\\
+	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
 		\bitbox{8}{0x01} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Reserved} \\
-		\bitbox{32}{0x10} \\
+		\bitbox{8}{0x08} \\
 		\bitbox{8}{0x00} &
 		\bitbox{8}{Protocol} &
 		\bitbox{16}{Port in Network Byte Order\footnotemark}\\
@@ -268,25 +296,29 @@
 	\textbf{IP6 Connect Packet}\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
-	\bitheader{0,8,16,24,32} \\
-	\bitbox{8}{0x01} &
-	\bitbox{8}{Message ID} &
-	\bitbox{8}{Sock ID} &
-	\bitbox{8}{Reserved} \\
-	\bitbox{32}{0x24} \\
-	\bitbox{8}{0x01} &
-	\bitbox{8}{Protocol} &
-	\bitbox{16}{Port in Network Byte Order}\\
-	\bitbox{32}{flowinfo} \\
-	\bitbox{32}{Scope ID} \\
-	\bitbox{32}{IP6 Addr In Network Byte Order} \\
-	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
-	\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
-	\bitbox{32}{...IP6 Addr In Network Byte Order} \\
+		\bitheader{0,8,16,24,32} \\
+		\bitbox{8}{0x01} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{0x24} \\
+		\bitbox{8}{0x01} &
+		\bitbox{8}{Protocol} &
+		\bitbox{16}{Port in Network Byte Order}\\
+		\bitbox{32}{flowinfo} \\
+		\bitbox{32}{Scope ID} \\
+		\bitbox{32}{IP6 Addr In Network Byte Order} \\
+		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
+		\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
+	Both connect types will send an ACK with a 32-bit signed integer as a response. 0 indicates success.
 	\\
-	\paragraph{WRITE} \mbox{}\\
-	Sends stream data over a connected socket. This command can be sent by either side.\\
+	\subsubsection{SCM Data Packet Formats} \mbox{}
+	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. \\
+	\\
+	Data Length will always be an unsigned 32-bit integer. 
+	\paragraph{TRANSMIT} \mbox{}\\
+	Sends data over the Bulk endpoint containing an arbitrary amount of data.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -302,7 +334,7 @@
 	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the receiver needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
 	\\
 	\paragraph{REPLY} \mbox{}\\
-	Similar to ACK but contains a data field for internal processing.  \\
+	Similar to ACKDATA the Data command type equivelent of ACK. This should only be used for commands that can expect more than 60 bytes of data back. \\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -314,6 +346,10 @@
 		\wordbox[tlr]{2}{Payload data...} \\
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
+
+	\subsection{SCM Packet Ordering}
+	Synchronization must be maintained to ensure that all commands arrive at the detinsation in the order they were requested. In particular, CLOSE commands shall not be transmitted while there is still unsent data and more data shall not be queued to transmit while a CLOSE is waiting to be sent. 
+	
 	\section{Packet Processing}
 	Fig A describes the process for the receiver on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
 	\\	
