@@ -281,7 +281,9 @@
 	\bitbox{8}{Message ID} &
 	\bitbox{8}{Sock ID} &
 	\bitbox{8}{Length} \\
-	\bitbox{32}{See ACK section on commands}\\
+	\bitbox{8}{Original Op Code} &
+	\bitbox{8}{Reserved} &
+	\bitbox{16}{Return data}\\
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
