@@ -268,12 +268,9 @@
 		\bitbox{8}{0x06} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Command Length} \\
-		\bitbox{32}{Exit Code (device to host only)}\\
+		\bitbox{8}{Data Length (0)} \\
 	\end{bytefield}\\
-	Length will be 0 when the host is sending to device, 0x04 when device is sending to host. \\
-	\\
-	On success ACK immediate will be 0, on failure the error code returned from the call (host to device only).
+	Upon completion an ACK command will be sent witn no return data. 
 	\\
 	\paragraph{ACK} \mbox{}\\
 	Upon completion of a message the receiver will send this back to acknowledge reciept and indicate whether the operation was a succes or a failure. Once USB has acknowledged reciept, the sender of an ACK will not wait for further confirmation that the recipient has received the message. \\
