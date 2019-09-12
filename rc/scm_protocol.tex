@@ -345,7 +345,7 @@
 	\\
 	Data Length will always be an unsigned 32-bit integer. 
 	\paragraph{TRANSMIT} \mbox{}\\
-	Sends data over the Bulk endpoint containing an arbitrary amount of data.\\
+	Sends data over the Bulk endpoint containing an arbitrary amount of data for a connected socket.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -358,8 +358,21 @@
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\\
-	ACK will return as a 32-byte signed integer. On error the return code (<0) will be returned. Zero will be returned on success and positive codes will be returned when the transfer was a success but the receiver needs to tell the sender to change sending behavior (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR) \\
-	\\
+	ACK will return as a 4-byte signed integer. On error the a negative number will be returned. Nonnegative return codes indicate a succesful trasnfer while positive return codes also indicate flow indicators (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR).\\
+	\begin{table}[H]
+		\begin{center}
+			\caption{ACK Codes for TRANSMIT}
+			\label{tab:transmitErrTable}
+			\begin{tabular}{c|l|l} 
+				\rowcolor{lightgray}
+				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\hline
+				0 & ESUCCESS & Success\\
+				-1 & EHOSTERR & An error has occured on the host\\
+				-2 & ENOTCONN & The socket on the remote side is not open and connected\\
+			\end{tabular}
+		\end{center}
+	\end{table} \mbox{}\\
 	\paragraph{REPLY} \mbox{}\\
 	Similar to ACKDATA the Data command type equivelent of ACK. This should only be used for commands that can expect more than 60 bytes of data back. \\
 	\\
