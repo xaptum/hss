@@ -207,6 +207,32 @@
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
 	The OPEN command is awlays initiated by the device to the host. The device will create a new message ID and new sock ID so the device can identify future operations on these objects.\\
+	\begin{table}[H]
+		\begin{center}
+			\caption{Values for Family.}
+			\label{tab:table2}
+			\begin{tabular}{c|c} 
+				\rowcolor{lightgray}
+				\textbf{ID} &	\textbf{Name}\\
+				\hline
+				0x01 & IP\\
+				0x02 & IP6\\
+			\end{tabular}
+		\end{center}
+	\end{table} 
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Protocol.}
+		\label{tab:table3}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & TCP\\
+			0x02 & UDP\\
+		\end{tabular}
+	\end{center}
+	\end{table} \mbox{}
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -217,11 +243,22 @@
 			\bitbox{16}{Addr Family} &
 			\bitbox{16}{Protocol} \\
 	\end{bytefield}\\
-	Address Family is the ID used by the Linux kernel in \colorbox{lightgray}{\lstinline{linux/socket.h}}\\
-	Protocol is the ID used by the Linux kernel in \colorbox{lightgray}{\lstinline{uapi/linux/in.h}}\\
-	\\
-	ACK will return as a 32-byte signed integer. On success ACK immediate will be 0, on failure the error code returned from the call.
-	
+	ACK will return with a 1-byte unsigned integer. 
+	\begin{table}[H]
+		\begin{center}
+			\caption{ACK Codes for OPEN}
+			\label{tab:openErrTable}
+			\begin{tabular}{l|l|l} 
+				\rowcolor{lightgray}
+				\textbf{ID} &	\textbf{Name} & \textbf{Description}\\
+				\hline
+				0 & ESUCCESS & Success\\
+				1 & EHOSTERR & An error has occured on the host\\
+				2 & EINVAL & Host does not understand protocol or protocol family\\
+				3 & EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
+			\end{tabular}
+		\end{center}
+	\end{table} \mbox{}\\
 	\paragraph{CLOSE} \mbox{}\\
 	When sent from device to host, disconnects (if connected) and closes a socket using the ID given during creation.
 	If sent from host to device this will serve as a notification that the socket has been closed by the remote peer. \\
@@ -251,33 +288,6 @@
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
-	\begin{table}[H]
-		\begin{center}
-			\caption{Values for Family.}
-			\label{tab:table2}
-			\begin{tabular}{c|c} 
-				\rowcolor{lightgray}
-				\textbf{ID} &	\textbf{Name}\\
-				\hline
-				0x01 & IP\\
-				0x02 & IP6\\
-			\end{tabular}
-		\end{center}
-	\end{table} \mbox{}\\
-	\begin{table}[H]
-		\begin{center}
-			\caption{Values for Protocol.}
-			\label{tab:table3}
-			\begin{tabular}{c|c} 
-				\rowcolor{lightgray}
-				\textbf{ID} &	\textbf{Name}\\
-				\hline
-				0x01 & TCP\\
-				0x02 & UDP\\
-			\end{tabular}
-		\end{center}
-	\end{table} \mbox{}
-	\\
 	\textbf{IP Connect Packet}\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
@@ -286,7 +296,7 @@
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{0x08} \\
-		\bitbox{8}{0x00} &
+		\bitbox{8}{Family (0x00)} &
 		\bitbox{8}{Protocol} &
 		\bitbox{16}{Port in Network Byte Order\footnotemark}\\
 		\bitbox{32}{IP Address in Network Byte Order}
@@ -301,18 +311,35 @@
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{0x24} \\
-		\bitbox{8}{0x01} &
+		\bitbox{8}{Family (0x01)} &
 		\bitbox{8}{Protocol} &
 		\bitbox{16}{Port in Network Byte Order}\\
 		\bitbox{32}{flowinfo} \\
 		\bitbox{32}{Scope ID} \\
-		\bitbox{32}{IP6 Addr In Network Byte Order} \\
+		\bitbox{32}{IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
-	Both connect types will send an ACK with a 32-bit signed integer as a response. 0 indicates success.
+	Both connect types will send an ACK with a 1-byte unsigned integer as a response.
 	\\
+	\begin{table}[H]
+		\begin{center}
+			\caption{ACK Codes for CONNECT}
+			\label{tab:connErrTable}
+			\begin{tabular}{c|l|l} 
+				\rowcolor{lightgray}
+				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\hline
+				0 & ESUCCESS & Success\\
+				1 & EHOSTERR & An error has occured on the host\\
+				2 & ECONNREFUSED & No one is listening on remote address\\
+				3 & ENETUNREACH & Network is unreachable\\
+				4 & ETIMEDOUT & Timeout while attempting connection\\
+				5 & EMISMATCH & Family or protocol for CONNECT to not match socks type on OPEN.\\
+			\end{tabular}
+		\end{center}
+	\end{table} \mbox{}\\
 	\subsubsection{SCM Data Packet Formats} \mbox{}
 	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. \\
 	\\
