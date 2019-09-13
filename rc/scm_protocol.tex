@@ -150,6 +150,18 @@
 			}
 		} 
 	\end{figure}
+	\subsection{SCM Packet Types}
+	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
+	\subsubsection{Common Fields}
+	All SCM packets begin with the following three bytes:\\
+	\begin{enumerate}
+		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
+		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
+		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
+	\end{enumerate}
+	While represented differently, both packets also include a length parameter indicating how much data follows the header. Both length fields are the length of the payload, not including the header. 
+	
+	\subsubsection{Op Codes}
 	\begin{table}[h!]
 		\begin{center}
 			\caption{OP Codes}
@@ -168,16 +180,7 @@
 			\end{tabular}
 		\end{center}
 	\end{table}
-	\subsection{SCM Packet Types}
-	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
-	\subsubsection{Common Fields}
-	All SCM packets begin with the following three bytes:\\
-	\begin{enumerate}
-		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
-		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
-		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
-	\end{enumerate}
-	While represented differently, both packets also include a length parameter indicating how much data follows the header. Both length fields are the length of the payload, not including the header. 
+
 	\subsubsection{Command}
 	SCM Command operations relate to opening, closing and managing sockets across USB. These requests are infrequent and short in length so they do not need to be mixed with larger data transmissions that can take a long time to process. Command packets are always sent over the USB Control EP and have a maximum length of 64 bytes including the header.\\
 	\\
