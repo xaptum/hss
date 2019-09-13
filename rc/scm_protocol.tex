@@ -397,11 +397,53 @@
 	\\	
 	\subsection{Processing Flow}
 	\subsubsection{Receiving SCM Packets From USB}
+	SCM transmission packets are sent over USB bulk transfers. SCM transfers may not be split over multiple bulk transfers, but may be split over USB Bulk Packets within a single transfers. Many SCM tranmission packets may be sent in one bulk transfer. This means that SCM packet headers may also be split between SCM packets. \\
+	\\
+	SCM transfers will end with one of a short USB packet, zero-length packet over USB (if supported) or a zero-length SCM transfer. Sending a zero-length USB packet when the reciever is expecting the continuation of a SCM packet causes undefined behavior. 
 	\begin{figure}[H]
 	\begin{center}
-		\caption[SCM Packet receive Flow]{SCM Packet receive Flow.}
-		\input{figA.tex}
+		\caption[SCM Packet receive Flow.]{SCM Packet receive Flow.}
+		 \resizebox{\linewidth}{!}{\input{USBRead.tex}}
 	\end{center}
 	\end{figure}
-	
+
+	\subsubsection{Transmitting Data}
+	The figure below illustrates how the host and device should send messages to eachother. 
+	\begin{figure}[H]
+	\begin{center}
+		\caption[Sending To Peer]{Sending To Peer.}
+		\resizebox{\linewidth}{!}{\input{Transmit.tex}}
+	\end{center}
+	\end{figure}
+
+
+	\subsubsection{Reading Transmitted Data}
+	The figure below illustrates how either the host or device should its read functions. Read can only work with data that has already been transmitted, it does not ask for data from its peer since any sendable data will be sent automatically. 
+	\begin{figure}[H]
+		\begin{center}
+			\caption[Reading Transmitted Data.]{Reading Transmitted Data.}
+			\resizebox{\linewidth}{!}{\input{ReadLocal.tex}}
+		\end{center}
+	\end{figure}
+
+
+	\subsubsection{Writing Data}
+	The figure below illustrates how either the host or device should its handle socket write calls. 
+	\begin{figure}[H]
+	\begin{center}
+		\caption[Writing Data to SCM.]{Writing Data to SCM.}
+		\resizebox{\linewidth}{!}{\input{WriteLocal.tex}}
+	\end{center}
+	\end{figure}
+
+\subsubsection{Command Flow}
+Commands involve controlling sockets and sending ACKs for commands. \\
+\\
+Open and Connect require confirmation from the host before the device can change its behavior. Disconnect and Close take effect regardless of acknowledgement, subsequent writes on a closed channel will return an error.
+\begin{figure}[H]
+	\begin{center}
+		\caption[Command Flow.]{Command Flow.}
+		\resizebox{\linewidth}{!}{\input{CommandFlow.tex}}
+	\end{center}
+\end{figure}
 \end{document}
