@@ -157,7 +157,7 @@
 	\begin{enumerate}
 		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
 		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
-		\item \textbf{Sock ID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
+		\item \textbf{bSockID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
 	\end{enumerate}
 	While represented differently, both packets also include a length parameter indicating how much data follows the header. Both length fields are the length of the payload, not including the header. 
 	
@@ -186,10 +186,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{Op Code} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Length} \\
+		\bitbox{8}{bOPCode} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
+		\bitbox{8}{bPayloadLen} \\
 		\bitbox{32}{Data (Up to 60 bytes)...} \\
 	\end{bytefield}\\ 
 	\subsubsection{Data}
@@ -197,11 +197,11 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{Op Code} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
+		\bitbox{8}{bOPCode} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
 		\bitbox{8}{Unused} \\
-		\bitbox{32}{Payload Length} \\
+		\bitbox{32}{dPayloadLen} \\
 		\bitbox{32}{Payload Data...} \\
 	\end{bytefield}\\
 	\subsection{SCM Packets} \mbox{}
@@ -239,12 +239,12 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{0x00} &
-			\bitbox{8}{Message ID} &
-			\bitbox{8}{Sock ID} &
-			\bitbox{8}{0x04} \\
-			\bitbox{16}{Addr Family} &
-			\bitbox{16}{Protocol} \\
+			\bitbox{8}{bOPCode (0x00)} &
+			\bitbox{8}{bMsgID} &
+			\bitbox{8}{bSockID} &
+			\bitbox{8}{bPayloadLen (0x04)} \\
+			\bitbox{16}{wAddrFamily} &
+			\bitbox{16}{wProtocol} \\
 	\end{bytefield}\\
 	ACK will return with a 1-byte unsigned integer. 
 	\begin{table}[H]
@@ -268,10 +268,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{0x06} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Data Length (0)} \\
+		\bitbox{8}{bOPCode (0x06)} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
+		\bitbox{8}{bPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -280,10 +280,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{0x02} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
-		\bitbox{8}{Data Length (0)} \\
+		\bitbox{8}{bOPCode (0x02)} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
+		\bitbox{8}{bPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -292,13 +292,13 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 	\bitheader{0,8,16,24,31} \\
-	\bitbox{8}{0x04} &
-	\bitbox{8}{Message ID} &
-	\bitbox{8}{Sock ID} &
-	\bitbox{8}{Length} \\
-	\bitbox{8}{Original Op Code} &
+	\bitbox{8}{bOPCode (0x04)} &
+	\bitbox{8}{bMsgID} &
+	\bitbox{8}{bSockID} &
+	\bitbox{8}{bPayloadLen} \\
+	\bitbox{8}{bOrigOpCode} &
 	\bitbox{8}{Reserved} &
-	\bitbox{16}{Return data}\\
+	\bitbox{16}{Return data (Up to 56 bytes)}\\
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
@@ -306,13 +306,13 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{0x01} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
-		\bitbox{8}{0x08} \\
-		\bitbox{8}{Family (0x00)} &
-		\bitbox{8}{Protocol} &
-		\bitbox{16}{Port in Network Byte Order\footnotemark}\\
+		\bitbox{8}{bOPCode (0x01)} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
+		\bitbox{8}{bPayloadLen (0x08)} \\
+		\bitbox{8}{bFamily (0x00)} &
+		\bitbox{8}{bProtocol} &
+		\bitbox{16}{wPort (in Network Byte Order\footnotemark)}\\
 		\bitbox{32}{IP Address in Network Byte Order}
 	\end{bytefield}\\
 	\footnotetext{POSIX.1-2017 expects the address and port to be in network byte order regardless of the host byte order.}
@@ -321,15 +321,15 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{0x01} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
-		\bitbox{8}{0x24} \\
-		\bitbox{8}{Family (0x01)} &
-		\bitbox{8}{Protocol} &
-		\bitbox{16}{Port in Network Byte Order}\\
-		\bitbox{32}{flowinfo} \\
-		\bitbox{32}{Scope ID} \\
+		\bitbox{8}{bOPCode (0x01)} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
+		\bitbox{8}{bPayloadLen (0x24)} \\
+		\bitbox{8}{bFamily (0x01)} &
+		\bitbox{8}{bProtocol} &
+		\bitbox{16}{wPort (in network byte order)}\\
+		\bitbox{32}{dFlowInfo} \\
+		\bitbox{32}{dScopeID} \\
 		\bitbox{32}{IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
@@ -363,11 +363,11 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{0x03} &
-			\bitbox{8}{Message ID} &
-			\bitbox{8}{Sock ID} &
+			\bitbox{8}{bOPCode (0x03)} &
+			\bitbox{8}{bMsgID} &
+			\bitbox{8}{bSockID} &
 			\bitbox{8}{Reserved} \\
-			\bitbox{32}{Payload Length in bytes} \\
+			\bitbox{32}{dPayloadLen} \\
 			\wordbox[tlr]{2}{Payload data...} \\
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
@@ -392,11 +392,11 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{0x05} &
-		\bitbox{8}{Message ID} &
-		\bitbox{8}{Sock ID} &
+		\bitbox{8}{bOPCode (0x05)} &
+		\bitbox{8}{bMsgID} &
+		\bitbox{8}{bSockID} &
 		\bitbox{8}{Reserved} \\
-		\bitbox{32}{Payload length}\\
+		\bitbox{32}{dPayloadLen}\\
 		\wordbox[tlr]{2}{Payload data...} \\
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
