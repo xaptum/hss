@@ -263,12 +263,24 @@
 		\end{center}
 	\end{table} \mbox{}\\
 	\paragraph{CLOSE} \mbox{}\\
-	When sent from device to host, disconnects (if connected) and closes a socket using the ID given during creation.
+	When sent from device to host, this command disconnects (if connected) and closes a socket using the ID given during creation.
 	If sent from host to device this will serve as a notification that the socket has been closed by the remote peer. \\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 		\bitbox{8}{0x06} &
+		\bitbox{8}{Message ID} &
+		\bitbox{8}{Sock ID} &
+		\bitbox{8}{Data Length (0)} \\
+	\end{bytefield}\\
+	Upon completion an ACK command will be sent witn no return data. 
+	\\
+	\paragraph{SHUTDOWN} \mbox{}\\
+	Shutdown indicates that the sender will no longer transmit data to the reiever, but the reciever may still send messages.\\
+	\\
+	\begin{bytefield}[bitwidth=1.7em]{32}
+		\bitheader{0,8,16,24,31} \\
+		\bitbox{8}{0x02} &
 		\bitbox{8}{Message ID} &
 		\bitbox{8}{Sock ID} &
 		\bitbox{8}{Data Length (0)} \\
