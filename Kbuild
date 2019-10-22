@@ -1,0 +1,2 @@
+obj-m += xaprc00x.o
+xaprc00x-objs := xaprc00x-main.o xaprc00x-usb.o xaprc00x-backports.o
