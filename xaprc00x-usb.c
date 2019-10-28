@@ -24,7 +24,7 @@ static const struct usb_device_id xaprc00x_device_table[] = {
 	{ USB_VENDOR_AND_INTERFACE_INFO(
 			USB_VENDOR_ID_XAPTUM,
 			USB_CLASS_VENDOR_SPEC,
-			USB_SUBCLASS_XAPTUM_SCM,
+			USB_SUBCLASS_SCM,
 			USB_CDC_PROTO_NONE)
 	}, { }
 };

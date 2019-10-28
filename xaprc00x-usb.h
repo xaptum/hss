@@ -9,6 +9,6 @@
 
 /* Define these values to match your devices */
 #define USB_VENDOR_ID_XAPTUM	 0x2fe0
-#define USB_SUBCLASS_XAPTUM_SCM   0xab
+#define USB_SUBCLASS_SCM   0xab
 
 #endif
