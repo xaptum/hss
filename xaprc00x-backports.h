@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
 /*
  * XAP-RC-00x driver for Linux
  *
@@ -15,7 +16,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
+ * USA.
  *
  */
 
@@ -25,13 +27,13 @@
 #include <linux/usb.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
+#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
 int __must_check
 usb_find_common_endpoints(struct usb_host_interface *alt,
-                          struct usb_endpoint_descriptor **bulk_in,
-                          struct usb_endpoint_descriptor **bulk_out,
-                          struct usb_endpoint_descriptor **int_in,
-                          struct usb_endpoint_descriptor **int_out);
+			  struct usb_endpoint_descriptor **bulk_in,
+			  struct usb_endpoint_descriptor **bulk_out,
+			  struct usb_endpoint_descriptor **int_in,
+			  struct usb_endpoint_descriptor **int_out);
 #endif
 
 #endif /* _XAPRC00X_BACKPORTS_H */

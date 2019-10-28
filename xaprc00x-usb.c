@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
 /**
  * @file xaprc00x_usb.c
  * @brief Implementation of the usb driver part for the xaptum tcp proxy
@@ -20,23 +21,25 @@
 
 /* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xaprc00x_device_table[] = {
-	{ USB_VENDOR_AND_INTERFACE_INFO(USB_VENDOR_ID_XAPTUM, USB_CLASS_VENDOR_SPEC,
-                            USB_SUBCLASS_XAPTUM_SCM,
-                            USB_CDC_PROTO_NONE) },
-	{ }					/* Terminating entry */
+	{ USB_VENDOR_AND_INTERFACE_INFO(
+			USB_VENDOR_ID_XAPTUM,
+			USB_CLASS_VENDOR_SPEC,
+			USB_SUBCLASS_XAPTUM_SCM,
+			USB_CDC_PROTO_NONE)
+	}, { }
 };
 MODULE_DEVICE_TABLE(usb, xaprc00x_device_table);
 
 /* Structure to hold all of our device specific stuff */
 struct usb_xaprc00x {
-	struct usb_device	*udev;			/* the usb device for this device */
-	struct usb_interface	*interface;		/* the interface for this device */
-	__u8			bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
-	__u8			bulk_out_endpointAddr;	/* the address of the bulk out endpoint */
+	struct usb_device	*udev;
+	struct usb_interface	*interface;
+	__u8			bulk_in_endpointAddr;
+	__u8			bulk_out_endpointAddr;
 	__u8			cmd_in_endpointAddr;
 	__u8			cmd_out_endpointAddr;
 	struct kref		kref;
-}; 
+};
 
 #define to_xaprc00x_dev(d) container_of(d, struct usb_xaprc00x, kref)
 
@@ -67,19 +70,17 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 	struct usb_endpoint_descriptor *ep_in, *ep_out;
 	struct usb_endpoint_descriptor *ep_cmd_in, *ep_cmd_out;
 	int error;
+
 	error = usb_find_common_endpoints(dev->interface->cur_altsetting,
 			&ep_in, &ep_out, &ep_cmd_in, &ep_cmd_out);
 
-	if(!error)
-	{
+	if (!error) {
 		/* Store the endpoint addresses */
 		dev->bulk_in_endpointAddr = ep_in->bEndpointAddress;
 		dev->bulk_out_endpointAddr = ep_out->bEndpointAddress;
 		dev->cmd_out_endpointAddr = ep_cmd_out->bEndpointAddress;
 		dev->cmd_in_endpointAddr = ep_cmd_in->bEndpointAddress;
-	}
-	else
-	{
+	} else {
 		dev_err(&dev->interface->dev,
 			"Could not find all endpoints\n");
 	}
@@ -91,7 +92,7 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
  * Probe function called when device with correct vendor / productid is found
  */
 static int xaprc00x_driver_probe(struct usb_interface *interface,
-		        const struct usb_device_id *id)
+			const struct usb_device_id *id)
 {
 	struct usb_xaprc00x *dev;
 	int retval = 0;
@@ -108,10 +109,8 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 
 	/* Set up the bulk and interrupt endpoints */
 	retval = xaprc00x_assign_endpoints(dev);
-	if(retval)
-	{
+	if (retval)
 		goto error;
-	}
 
 	/* Tell the USB interface where our device data is located */
 	usb_set_intfdata(interface, dev);
@@ -122,7 +121,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 		 interface->minor);
 
 error:
-	if(retval)
+	if (retval)
 		kref_put(&dev->kref, xaprc00x_driver_delete);
 
 	return retval;
@@ -146,7 +145,8 @@ static void xaprc00x_driver_disconnect(struct usb_interface *interface)
 }
 
 /* Stop communicating when the host suspends */
-static int xaprc00x_driver_suspend(struct usb_interface *intf, pm_message_t message)
+static int xaprc00x_driver_suspend(struct usb_interface *intf,
+	pm_message_t message)
 {
 	return 0;
 }
