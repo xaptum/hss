@@ -116,9 +116,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	usb_set_intfdata(interface, dev);
 
 	/* let the user know what node this device is now attached to */
-	dev_info(&interface->dev,
-		 "USB Skeleton device now attached to USBSkel-%d",
-		 interface->minor);
+	dev_info(&interface->dev, "SCM Driver now attached.");
 
 error:
 	if (retval)
@@ -130,7 +128,6 @@ error:
 static void xaprc00x_driver_disconnect(struct usb_interface *interface)
 {
 	struct usb_xaprc00x *dev;
-	int minor = interface->minor;
 
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
@@ -141,7 +138,7 @@ static void xaprc00x_driver_disconnect(struct usb_interface *interface)
 	/* decrement our usage count */
 	kref_put(&dev->kref, xaprc00x_driver_delete);
 
-	dev_info(&interface->dev, "USB Skeleton #%d now disconnected", minor);
+	dev_info(&interface->dev, "SCM Driver now disconnected.");
 }
 
 /* Stop communicating when the host suspends */
