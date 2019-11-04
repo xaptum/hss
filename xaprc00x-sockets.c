@@ -46,7 +46,7 @@ static struct scm_host_socket *xaprc00x_get_socket(int *key)
 }
 
 /**
- * xaprc00x_create_socket - Creates a sock for a given family and protocol
+ * xaprc00x_socket_create - Creates a sock for a given family and protocol
  *
  * @socket_id The socket id to connect
  * @family The protocol family of the connection
@@ -60,7 +60,7 @@ static struct scm_host_socket *xaprc00x_get_socket(int *key)
  *
  * Returns: 0 if all endpoints were matched, -ENXIO otherwise
  */
-int xaprc00x_create_socket(int socket_id, int family, int protocol)
+int xaprc00x_socket_create(int socket_id, int family, int protocol)
 {
 	int ret;
 	struct socket *sock = NULL;
@@ -106,7 +106,7 @@ void xaprc00x_close_socket(int socket_id)
 }
 
 /**
- * xaprc00x_create_socket - Creates a sock for a given family and protocol
+ * xaprc00x_socket_create - Creates a sock for a given family and protocol
  *
  * @socket_id The socket id to connect
  * @how The direction to shut down
@@ -121,7 +121,7 @@ void xaprc00x_shutdown_socket(int socket_id, enum sock_shutdown_cmd how)
 }
 
 /**
- * xaprc00x_connect_socket - Connect an existing socket to an address
+ * xaprc00x_socket_connect - Connect an existing socket to an address
  *
  * @socket_id The socket id to connect
  * @family The protocol family of the connection
@@ -139,7 +139,7 @@ void xaprc00x_shutdown_socket(int socket_id, enum sock_shutdown_cmd how)
  *
  * Returns: 0 if all endpoints were matched, -ENXIO otherwise
  */
-int xaprc00x_connect_socket(int socket_id, unsigned short int family,
+int xaprc00x_socket_connect(int socket_id, unsigned short int family,
 	char *addrBuf, int ipaddr_len, __be16 port, __be32 flow, __u32 scope,
 	int flags)
 {
@@ -196,7 +196,7 @@ exit:
 }
 
 /**
- * xaprc00x_connect_socket_in4 - Connect an existing socket to an INET address
+ * xaprc00x_socket_connect_in4 - Connect an existing socket to an INET address
  *
  * @socket_id The socket id to connect
  * @addr The inet address (4 bytes) to connect to, in network byte order
@@ -205,17 +205,17 @@ exit:
  *
  * Connects a managed socket to a given address.
  *
- * Returns: Result from xaprc00x_connect_socket
+ * Returns: Result from xaprc00x_socket_connect
  */
-int xaprc00x_connect_socket_in4(int socket_id, char *addr, __be16 port,
+int xaprc00x_socket_connect_in4(int socket_id, char *addr, __be16 port,
 	int flags)
 {
-	return xaprc00x_connect_socket(socket_id, AF_INET, addr,
+	return xaprc00x_socket_connect(socket_id, AF_INET, addr,
 		sizeof(struct in_addr), port, 0, 0, flags);
 }
 
 /**
- * xaprc00x_connect_socket_in6 - Connect an existing socket to an INET6 address
+ * xaprc00x_socket_connect_in6 - Connect an existing socket to an INET6 address
  *
  * @socket_id The socket id to connect
  * @addr The inet6 address (16 bytes) to connect to, in network byte order
@@ -224,17 +224,17 @@ int xaprc00x_connect_socket_in4(int socket_id, char *addr, __be16 port,
  *
  * Connects a managed socket to a given address.
  *
- * Returns: Result from xaprc00x_connect_socket
+ * Returns: Result from xaprc00x_socket_connect
  */
-int xaprc00x_connect_socket_in6(int socket_id, unsigned short int family,
+int xaprc00x_socket_connect_in6(int socket_id, unsigned short int family,
 	char *addr, __be16 port, __be32 flow, __u32 scope, int flags)
 {
-	return xaprc00x_connect_socket(socket_id, AF_INET6, addr,
+	return xaprc00x_socket_connect(socket_id, AF_INET6, addr,
 		sizeof(struct in6_addr), port, flow, scope, flags);
 }
 
 /**
- * xaprc00x_write_socket - Writes to a socket
+ * xaprc00x_socket_write - Writes to a socket
  *
  * @socket_id The socket id to connect
  * @buf The buffer to write
@@ -242,7 +242,7 @@ int xaprc00x_connect_socket_in6(int socket_id, unsigned short int family,
  *
  * Returns: Number of bytes transmitted or an error code.
  */
-int xaprc00x_write_socket(int socket_id, void *buf, int len)
+int xaprc00x_socket_write(int socket_id, void *buf, int len)
 {
 	struct scm_host_socket *socket;
 	int ret = -EEXIST;
@@ -263,7 +263,7 @@ int xaprc00x_write_socket(int socket_id, void *buf, int len)
 }
 
 /**
- * xaprc00x_read_socket - Writes to a socket
+ * xaprc00x_socket_read - Writes to a socket
  *
  * @socket_id The socket id to connect
  * @buf The buffer to write
@@ -272,7 +272,7 @@ int xaprc00x_write_socket(int socket_id, void *buf, int len)
  *
  * Returns: Number of bytes received or an error code.
  */
-int xaprc00x_read_socket(int socket_id, void *buf, int len, int flags)
+int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags)
 {
 	struct scm_host_socket *socket;
 	struct msghdr msg;
