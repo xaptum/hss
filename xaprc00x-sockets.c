@@ -88,11 +88,11 @@ exit:
 }
 
 /**
- * xaprc00x_close_socket - Closes a sock
+ * xaprc00x_socket_close - Closes a sock
  *
  * @socket_id The socket id to close
  */
-void xaprc00x_close_socket(int socket_id)
+void xaprc00x_socket_close(int socket_id)
 {
 	struct scm_host_socket *socket;
 	/* Close and free the given socket if it can be found */
@@ -111,7 +111,7 @@ void xaprc00x_close_socket(int socket_id)
  * @socket_id The socket id to connect
  * @how The direction to shut down
  */
-void xaprc00x_shutdown_socket(int socket_id, enum sock_shutdown_cmd how)
+void xaprc00x_socket_shutdown(int socket_id, enum sock_shutdown_cmd how)
 {
 	struct scm_host_socket *socket;
 	/* Close the given socket if it can be found */

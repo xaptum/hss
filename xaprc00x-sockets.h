@@ -11,9 +11,9 @@ int xaprc00x_socket_mgr_init(void);
 int xaprc00x_socket_create(int socket_id, unsigned short int family,
 	int protocol);
 
-void xaprc00x_close_socket(int socket_id);
+void xaprc00x_socket_close(int socket_id);
 
-void xaprc00x_shutdown_socket(int socket_id, int dir);
+void xaprc00x_socket_shutdown(int socket_id, int dir);
 
 int xaprc00x_socket_connect_in4(int socket_id, char *addr, int addrlen,
 	__be16 port, int flags);
