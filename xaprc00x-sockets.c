@@ -73,7 +73,8 @@ int xaprc00x_create_socket(int socket_id, int family, int protocol)
 	}
 
 	/* Create the outbound socket */
-	ret = sock_create(family, SOCK_STREAM, protocol, &sock);
+	ret = sock_create_kern(&init_net, family, SOCK_STREAM, protocol,
+		&sock);
 	if (ret)
 		goto exit;
 
