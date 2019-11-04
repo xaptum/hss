@@ -58,7 +58,7 @@ static struct scm_host_socket *xaprc00x_get_socket(int *key)
  * Notes: Currently only supports INET and INET6 address families
  * and TCP protocols.
  *
- * Returns: 0 if all endpoints were matched, -ENXIO otherwise
+ * Returns: 0 on successor an error code
  */
 int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 {
