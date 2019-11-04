@@ -157,7 +157,7 @@
 	\begin{enumerate}
 		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
 		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
-		\item \textbf{bSockID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the device during an OPEN command.
+		\item \textbf{bSockID}: 8-bit unsigned integer identifying which sock is being sent to. Sock IDs are always created by the host during an OPEN command.
 	\end{enumerate}
 	While represented differently, both packets also include a length parameter indicating how much data follows the header. Both length fields are the length of the payload, not including the header. 
 	
@@ -209,7 +209,7 @@
 	\subsubsection{SCM Command Packet Formats}
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
-	The OPEN command is awlays initiated by the device to the host. The device will create a new message ID and new sock ID so the device can identify future operations on these objects.\\
+	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID and the host will reply with an 8-bit ID to use to refer to this new socket on all future operations. \\
 	\begin{table}[H]
 		\begin{center}
 			\caption{Values for Family.}
@@ -235,18 +235,31 @@
 			0x02 & UDP\\
 		\end{tabular}
 	\end{center}
-	\end{table} \mbox{}
-	\\
+	\end{table}
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Type.}
+		\label{tab:table4}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & Stream\\
+			0x02 & Datagram\\
+		\end{tabular}
+	\end{center}
+	\end{table}
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 			\bitbox{8}{bOPCode (0x00)} &
 			\bitbox{8}{bMsgID} &
-			\bitbox{8}{bSockID} &
-			\bitbox{8}{bPayloadLen (0x04)} \\
+			\bitbox{8}{Reserved} &
+			\bitbox{8}{bPayloadLen (0x05)} \\
 			\bitbox{16}{wAddrFamily} &
 			\bitbox{16}{wProtocol} \\
+			\bitbox{8}{bType} \\
 	\end{bytefield}\\
-	ACK will return with a 1-byte unsigned integer. 
+	ACK will return with a 1-byte unsigned integer return code, the value of this ACKs headers Sock ID is the new sock ID created by the host.
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for OPEN}
@@ -311,7 +324,7 @@
 		\bitbox{8}{bSockID} &
 		\bitbox{8}{bPayloadLen (0x08)} \\
 		\bitbox{8}{bFamily (0x00)} &
-		\bitbox{8}{bProtocol} &
+		\bitbox{8}{Reserved} &
 		\bitbox{16}{wPort (in Network Byte Order\footnotemark)}\\
 		\bitbox{32}{IP Address in Network Byte Order}
 	\end{bytefield}\\
@@ -326,7 +339,7 @@
 		\bitbox{8}{bSockID} &
 		\bitbox{8}{bPayloadLen (0x24)} \\
 		\bitbox{8}{bFamily (0x01)} &
-		\bitbox{8}{bProtocol} &
+		\bitbox{8}{Reserved} &
 		\bitbox{16}{wPort (in network byte order)}\\
 		\bitbox{32}{dFlowInfo} \\
 		\bitbox{32}{dScopeID} \\
@@ -403,6 +416,9 @@
 
 	\subsection{SCM Packet Ordering}
 	Synchronization must be maintained to ensure that all commands arrive at the detinsation in the order they were requested. In particular, CLOSE commands shall not be transmitted while there is still unsent data and more data shall not be queued to transmit while a CLOSE is waiting to be sent. 
+	
+	\subsection{Multiple Devices and Seperation}
+	A host may provide sockets to many devices, but a device may never manage a socket which is controlled by another device. It is the responsibility of the host to ensure packets from one device are never executed on sockets belonging to another.
 	
 	\section{Packet Processing}
 	Fig A describes the process for the receiver on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
