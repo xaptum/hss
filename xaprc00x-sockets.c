@@ -60,7 +60,7 @@ static struct scm_host_socket *xaprc00x_get_socket(int *key)
  *
  * Returns: 0 if all endpoints were matched, -ENXIO otherwise
  */
-int xaprc00x_socket_create(int socket_id, int family, int protocol)
+int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 {
 	int ret;
 	struct socket *sock = NULL;
@@ -73,7 +73,7 @@ int xaprc00x_socket_create(int socket_id, int family, int protocol)
 	}
 
 	/* Create the outbound socket */
-	ret = sock_create_kern(&init_net, family, SOCK_STREAM, protocol,
+	ret = sock_create_kern(&init_net, family, type, protocol,
 		&sock);
 	if (ret)
 		goto exit;

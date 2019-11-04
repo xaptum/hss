@@ -8,7 +8,7 @@
 
 int xaprc00x_socket_mgr_init(void);
 
-int xaprc00x_socket_create(int socket_id, unsigned short int family,
+int xaprc00x_socket_create(int socket_id, unsigned short int family, int type,
 	int protocol);
 
 void xaprc00x_socket_close(int socket_id);
