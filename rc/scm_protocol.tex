@@ -235,16 +235,29 @@
 			0x02 & UDP\\
 		\end{tabular}
 	\end{center}
-	\end{table} \mbox{}
-	\\
+	\end{table}
+	\begin{table}[H]
+	\begin{center}
+		\caption{Values for Type.}
+		\label{tab:table4}
+		\begin{tabular}{c|c} 
+			\rowcolor{lightgray}
+			\textbf{ID} &	\textbf{Name}\\
+			\hline
+			0x01 & Stream\\
+			0x02 & Datagram\\
+		\end{tabular}
+	\end{center}
+	\end{table}
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
 			\bitbox{8}{bOPCode (0x00)} &
 			\bitbox{8}{bMsgID} &
 			\bitbox{8}{bSockID} &
-			\bitbox{8}{bPayloadLen (0x04)} \\
+			\bitbox{8}{bPayloadLen (0x05)} \\
 			\bitbox{16}{wAddrFamily} &
 			\bitbox{16}{wProtocol} \\
+			\bitbox{8}{bType} \\
 	\end{bytefield}\\
 	ACK will return with a 1-byte unsigned integer. 
 	\begin{table}[H]
