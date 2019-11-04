@@ -121,77 +121,59 @@ void xaprc00x_shutdown_socket(int socket_id, enum sock_shutdown_cmd how)
 }
 
 /**
- * xaprc00x_socket_connect - Connect an existing socket to an address
+ * xaprc00x_addr_in4 - Assemble an in4 address
  *
- * @socket_id The socket id to connect
- * @family The protocol family of the connection
- * @protocol The protocol to connect with
- * @addrBuf The address to connect to in network byte order
- * @ipaddr_len The length of the address in bytes
- * @port The port to connect to in notwork byte order
- * @flow The flowinfo in network byte order (ignored unless family is INET6)
- * @scope The scope in network byte order (ignored unless family is INET6)
- * @flags Flags to pass to kernel_connect
+ * @ip_addr The buffer containing the IPv4 address in network byte order.
+ * @ip_len The length of the address being passed
+ * @port The port to connect to
+ * @addr The in4 address to write to
  *
- * Connects a managed socket to a given address.
+ * Populates an inet4 address
  *
- * Notes: Currently only supports INET and INET6 address families.
- *
- * Returns: 0 if all endpoints were matched, -ENXIO otherwise
+ * Returns: 0 on success or an error code
  */
-int xaprc00x_socket_connect(int socket_id, unsigned short int family,
-	char *addrBuf, int ipaddr_len, __be16 port, __be32 flow, __u32 scope,
-	int flags)
+static int xaprc00x_addr_in4(char *ip_addr, int ip_len, __be16 port,
+	struct sockaddr_in *addr)
 {
-	int ret;
-	struct scm_host_socket *socket;
-	struct sockaddr_storage addr = {0};
-	int sockaddr_len;
+	int ret = -EINVAL;
 
-	ret = 0;
-
-	if (!addrBuf) {
-		ret = -EINVAL;
-		goto exit;
+	if (addr && ip_addr && ip_len == sizeof(struct in_addr)) {
+		addr->sin_family = AF_INET;
+		addr->sin_port = port;
+		memcpy(&addr->sin_addr, ip_addr, ip_len);
+		ret = 0;
 	}
+	return ret;
+}
 
-	/* Make sure the requested socket exists */
-	socket = xaprc00x_get_socket(&socket_id);
+/**
+ * xaprc00x_addr_in6 - Assemble an in6 address
+ *
+ * @addrBuf The buffer containing the IPv6 address
+ * @addrLen The length of the address being passed
+ * @port The port to connect to
+ * @flow The flow information
+ * @scope The scope information
+ * @addr The in6 address to write to
+ *
+ * Populates an inet6 address
+ *
+ * Returns: 0 on success or an error code
+ */
+static int xaprc00x_addr_in6(char *ip_addr,
+	int ip_len, __be16 port, __be32 flow, __u32 scope,
+	struct sockaddr_in6 *addr)
+{
+	int ret = -EINVAL;
 
-	if (!socket) {
-		ret = -ENXIO;
-		goto exit;
+	if (addr && ip_addr && ip_len == sizeof(struct in6_addr)) {
+		addr->sin6_family = AF_INET6;
+		addr->sin6_scope_id = scope;
+		addr->sin6_port = port;
+		addr->sin6_flowinfo = flow;
+		memcpy(&addr->sin6_addr, ip_addr, ip_len);
+		ret = 0;
 	}
-
-	/* Create the address if the family is supported */
-	if (family == AF_INET && ipaddr_len == sizeof(struct in_addr)) {
-		struct sockaddr_in *dst_in4 = (struct sockaddr_in *) &addr;
-
-		sockaddr_len = sizeof(struct sockaddr_in);
-
-		dst_in4->sin_family = family;
-		dst_in4->sin_port = port;
-		memcpy(&dst_in4->sin_addr, addrBuf, ipaddr_len);
-	} else if (family == AF_INET6 &&
-		ipaddr_len == sizeof(struct in6_addr)) {
-		struct sockaddr_in6 *dst_in6 = (struct sockaddr_in6 *) &addr;
-
-		sockaddr_len = sizeof(struct sockaddr_in6);
-
-		dst_in6->sin6_family = family;
-		dst_in6->sin6_scope_id = scope;
-		dst_in6->sin6_port = port;
-		dst_in6->sin6_flowinfo = flow;
-		memcpy(&dst_in6->sin6_addr, addrBuf, ipaddr_len);
-	} else {
-		/* Invalid protocol or address specified */
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	ret = kernel_connect(socket->sock, (struct sockaddr *)&addr,
-		sockaddr_len, flags);
-exit:
 	return ret;
 }
 
@@ -207,11 +189,26 @@ exit:
  *
  * Returns: Result from xaprc00x_socket_connect
  */
-int xaprc00x_socket_connect_in4(int socket_id, char *addr, __be16 port,
-	int flags)
+int xaprc00x_socket_connect_in4(int socket_id, char *ip_addr, int ip_len,
+	__be16 port, int flags)
 {
-	return xaprc00x_socket_connect(socket_id, AF_INET, addr,
-		sizeof(struct in_addr), port, 0, 0, flags);
+	struct sockaddr_in addr = {0};
+	struct scm_host_socket *socket;
+	int ret = 0;
+
+	socket = xaprc00x_get_socket(&socket_id);
+	if (!socket) {
+		ret = -EEXIST;
+		goto exit;
+	}
+
+	ret = xaprc00x_addr_in4(ip_addr, ip_len, port, &addr);
+
+	if (!ret)
+		ret = kernel_connect(socket->sock, (struct sockaddr *)&addr,
+			sizeof(struct sockaddr_in), flags);
+exit:
+	return ret;
 }
 
 /**
@@ -224,13 +221,28 @@ int xaprc00x_socket_connect_in4(int socket_id, char *addr, __be16 port,
  *
  * Connects a managed socket to a given address.
  *
- * Returns: Result from xaprc00x_socket_connect
+ * Returns: 0 on success or an error code
  */
-int xaprc00x_socket_connect_in6(int socket_id, unsigned short int family,
-	char *addr, __be16 port, __be32 flow, __u32 scope, int flags)
+int xaprc00x_socket_connect_in6(int socket_id, char *ip_addr, int ip_len,
+	__be16 port, __be32 flow, __u32 scope, int flags)
 {
-	return xaprc00x_socket_connect(socket_id, AF_INET6, addr,
-		sizeof(struct in6_addr), port, flow, scope, flags);
+	struct sockaddr_in6 addr = {0};
+	struct scm_host_socket *socket;
+	int ret = 0;
+
+	socket = xaprc00x_get_socket(&socket_id);
+	if (!socket) {
+		ret = -EEXIST;
+		goto exit;
+	}
+
+	ret = xaprc00x_addr_in6(ip_addr, ip_len, port, flow, scope,
+		&addr);
+	if (!ret)
+		ret = kernel_connect(socket->sock, (struct sockaddr *)&addr,
+			sizeof(struct in6_addr), flags);
+exit:
+	return ret;
 }
 
 /**
