@@ -311,7 +311,7 @@
 		\bitbox{8}{bSockID} &
 		\bitbox{8}{bPayloadLen (0x08)} \\
 		\bitbox{8}{bFamily (0x00)} &
-		\bitbox{8}{bProtocol} &
+		\bitbox{8}{Reserved} &
 		\bitbox{16}{wPort (in Network Byte Order\footnotemark)}\\
 		\bitbox{32}{IP Address in Network Byte Order}
 	\end{bytefield}\\
@@ -326,7 +326,7 @@
 		\bitbox{8}{bSockID} &
 		\bitbox{8}{bPayloadLen (0x24)} \\
 		\bitbox{8}{bFamily (0x01)} &
-		\bitbox{8}{bProtocol} &
+		\bitbox{8}{Reserved} &
 		\bitbox{16}{wPort (in network byte order)}\\
 		\bitbox{32}{dFlowInfo} \\
 		\bitbox{32}{dScopeID} \\
