@@ -45,6 +45,11 @@ static struct scm_host_socket *xaprc00x_get_socket(int *key)
 	return rhashtable_lookup_fast(&socket_hash_table, key, ht_parms);
 }
 
+int xaprc00x_socket_exists(int key)
+{
+	return (xaprc00x_get_socket(&key) != NULL);
+}
+
 /**
  * xaprc00x_socket_create - Creates a sock for a given family and protocol
  *

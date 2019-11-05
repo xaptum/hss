@@ -25,4 +25,6 @@ int xaprc00x_socket_write(int socket_id, void *const buf, int len);
 
 int xaprc00x_socket_read(int socket_id, void *buf, int size, int flags);
 
+int xaprc00x_socket_exists(int key);
+
 #endif /* __XAPRC00X_SOCKETS_H */
