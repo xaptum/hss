@@ -58,17 +58,14 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	ack->hdr.payload_len = 1;
 	switch (ret) {
 	case 0:
-		ack->ack.open = 0x00;
+		ack->ack.open = SCM_E_SUCCESS;
 		ack->hdr.sock_id = id;
 		break;
-	case -EEXIST:
-		ack->ack.open = 0x01;
-		break;
 	case -EINVAL:
-		ack->ack.open = 0x02;
+		ack->ack.open = SCM_E_INVAL;
 		break;
 	default:
-		ack->ack.open = 0x01;
+		ack->ack.open = SCM_E_HOSTERR;
 		break;
 	}
 	ack->ack.connect = ret;
@@ -90,21 +87,55 @@ static void xaprc00x_proxy_fill_ack_connect(struct scm_packet *packet,
 	ack->hdr.payload_len = 1;
 	switch (ret) {
 	case 0:
-		ack->ack.connect = 0x00;
+		ack->ack.connect = SCM_E_SUCCESS;
 		break;
 	case -ECONNREFUSED:
-		ack->ack.connect = 0x02;
+		ack->ack.connect = SCM_E_CONNREFUSED;
 		break;
 	case -ENETUNREACH:
-		ack->ack.connect = 0x03;
+		ack->ack.connect = SCM_E_NETUNREACH;
 		break;
 	case -ETIMEDOUT:
-		ack->ack.connect = 0x04;
+		ack->ack.connect = SCM_E_TIMEDOUT;
 		break;
 	default:
-		ack->ack.connect = 0x01;
+		ack->ack.connect = SCM_E_HOSTERR;
 		break;
 	}
+}
+
+static int xaprc00x_family_to_host(enum scm_fam dev_fam)
+{
+	int host_fam = -1;
+	if (dev_fam == SCM_FAM_IP) {
+		host_fam = PF_INET;
+	} else if (dev_fam == SCM_FAM_IP6) {
+		host_fam = PF_INET6;
+	}
+	return host_fam;
+}
+
+static enum scm_proto xaprc00x_protocol_to_host(enum scm_proto dev_proto)
+{
+	int host_proto = -1;
+
+	if (dev_proto == SCM_PROTO_TCP) {
+		host_proto = IPPROTO_TCP;
+	} else if (dev_proto == SCM_PROTO_UDP) {
+		host_proto = IPPROTO_UDP;
+	}
+	return host_proto;
+}
+
+static enum scm_type xaprc00x_type_to_host(enum scm_type dev_type)
+{
+	int host_type = -1;
+	if (dev_type == SCM_TYPE_STREAM) {
+		host_type = SOCK_STREAM;
+	} else if (dev_type == SCM_TYPE_DGRAM) {
+		host_type = SOCK_DGRAM;
+	}
+	return host_type;
 }
 
 /**
@@ -131,29 +162,20 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	 payload = &packet->open;
 
 	/* Translate the SCM parameters to ones the socket interface */
-	if (payload->addr_family == SCM_FAM_IP) {
-		family = PF_INET;
-	} else if (payload->addr_family == SCM_FAM_IP6) {
-		family = PF_INET6;
-	} else {
+	family = xaprc00x_family_to_host(payload->addr_family)
+	if (family < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	if (payload->protocol == SCM_PROTO_TCP) {
-		protocol = IPPROTO_TCP;
-	} else if (payload->protocol == SCM_PROTO_UDP) {
-		protocol = IPPROTO_UDP;
-	} else {
+	protocol = xaprc00x_protocol_to_host(payload->protocol)
+	if (xaprc00x_protocol_to_host < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	if (payload->type == SCM_TYPE_STREAM) {
-		type = SOCK_STREAM;
-	} else if (payload->type == SCM_TYPE_DGRAM) {
-		type = SOCK_DGRAM;
-	} else {
+	type = xaprc00x_protocol_to_type(payload->type);
+	if (type < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}

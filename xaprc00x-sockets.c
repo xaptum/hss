@@ -85,9 +85,15 @@ int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 
 	/* Register the socket on the table */
 	scm_sock = kzalloc(sizeof(struct scm_host_socket), GFP_KERNEL);
-	scm_sock->sock = sock;
-	rhashtable_lookup_insert_fast(&socket_hash_table, &scm_sock->hash,
-		ht_parms);
+	if (!scm_sock) {
+		ret = -ENOMEM;
+		sock_release(sock);
+	} else {
+		scm_sock->sock = sock;
+		rhashtable_lookup_insert_fast(&socket_hash_table, &scm_sock->hash,
+			ht_parms);
+		ret = 0;
+	}
 exit:
 	return ret;
 }

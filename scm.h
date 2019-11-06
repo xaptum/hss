@@ -37,6 +37,19 @@ enum __attribute__ ((__packed__)) scm_type {
 	SCM_TYPE_MAX	= 0xFF
 };
 
+enum __attribute__ ((__packed__)) scm_error {
+	SCM_E_SUCCESS		= 0x00,
+	SCM_E_HOSTERR		= 0x01,
+	SCM_E_INVAL		= 0x02,
+	SCM_E_CONNREFUSED	= 0x03,
+	SCM_E_PROTONOSUPPORT	= 0x04,
+	SCM_E_NETUNREACH	= 0x05,
+	SCM_E_TIMEDOUT		= 0x06,
+	SCM_E_MISMATCH		= 0x07,
+	SCM_E_NOTCONN		= 0x08,
+	SCM_E_MAX		= 0xFF
+};
+
 struct scm_packet_hdr {
 	enum scm_opcode	opcode;
 	__u8		msg_id;
@@ -44,7 +57,7 @@ struct scm_packet_hdr {
 	__u8		payload_len;
 };
 
-struct scm_payload_data{
+struct scm_payload_data {
 	__u32 payloadLen;
 	unsigned char data[];
 };
@@ -54,7 +67,6 @@ struct scm_payload_open {
 	enum scm_proto	protocol;
 	enum scm_type	type;
 };
-
 
 struct scm_payload_ack {
 	enum scm_opcode	orig_opcode;
@@ -76,14 +88,16 @@ struct scm_payload_connect_ip4 {
 	__be32		ip_addr;
 };
 
+union scm_payload_connect_ip_addr {
+	struct scm_payload_connect_ip6 ip6; 
+	struct scm_payload_connect_ip4 ip4;
+};
+
 struct scm_payload_connect_ip {
 	enum scm_family	family;
-	__u8		resvd;
-	__be16		port;
-	union {
-		struct scm_payload_connect_ip6 ip6; 
-		struct scm_payload_connect_ip4 ip4;
-	};
+	__u8					resvd;
+	__be16					port;
+	union scm_payload_connect_ip_addr	addr;
 };
 
 struct scm_packet {
