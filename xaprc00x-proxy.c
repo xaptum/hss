@@ -104,7 +104,7 @@ static void xaprc00x_proxy_fill_ack_connect(struct scm_packet *packet,
 	}
 }
 
-static int xaprc00x_family_to_host(enum scm_fam dev_fam)
+static int xaprc00x_family_to_host(enum scm_family dev_fam)
 {
 	int host_fam = -1;
 	if (dev_fam == SCM_FAM_IP) {
@@ -162,19 +162,19 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	 payload = &packet->open;
 
 	/* Translate the SCM parameters to ones the socket interface */
-	family = xaprc00x_family_to_host(payload->addr_family)
+	family = xaprc00x_family_to_host(payload->addr_family);
 	if (family < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	protocol = xaprc00x_protocol_to_host(payload->protocol)
+	protocol = xaprc00x_protocol_to_host(payload->protocol);
 	if (xaprc00x_protocol_to_host < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	type = xaprc00x_protocol_to_type(payload->type);
+	type = xaprc00x_type_to_host(payload->type);
 	if (type < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
@@ -207,12 +207,12 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	switch (payload->family) {
 	case SCM_FAM_IP:
 		ret = xaprc00x_socket_connect_in4(id, 
-			(char *)&(payload->ip4.ip_addr), 4, payload->port, 0);
+			(char *)&(payload->addr.ip4.ip_addr), 4, payload->port, 0);
 		break;
 	case SCM_FAM_IP6:
 		ret = xaprc00x_socket_connect_in6(id, 
-			(char *)&(payload->ip6.ip_addr), 16, payload->port,
-			payload->ip6.flow_info, payload->ip6.scope_id, 0);
+			(char *)&(payload->addr.ip6.ip_addr), 16, payload->port,
+			payload->addr.ip6.flow_info, payload->addr.ip6.scope_id, 0);
 		break;
 	default:
 		ret = -EINVAL;
