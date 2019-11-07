@@ -9,26 +9,26 @@
 #include <linux/kernel.h>
 
 enum __attribute__ ((__packed__)) scm_opcode {
-	SCM_OP_OPEN	= 0x00,
-	SCM_OP_CONNECT	= 0x01,
-	SCM_OP_SHUTDOWN	= 0x02,
-	SCM_OP_TRANSMIT	= 0x03,
-	SCM_OP_ACK	= 0x04,
-	SCM_OP_ACKDATA	= 0x05,
-	SCM_OP_CLOSE	= 0x06,
-	SCM_OP_MAX	= 0xFF
+	SCM_OP_OPEN	= cpu_to_le16(0x00),
+	SCM_OP_CONNECT	= cpu_to_le16(0x01),
+	SCM_OP_SHUTDOWN	= cpu_to_le16(0x02),
+	SCM_OP_TRANSMIT	= cpu_to_le16(0x03),
+	SCM_OP_ACK	= cpu_to_le16(0x04),
+	SCM_OP_ACKDATA	= cpu_to_le16(0x05),
+	SCM_OP_CLOSE	= cpu_to_le16(0x06),
+	SCM_OP_MAX	= cpu_to_le16(0xFFFF)
 };
 
 enum __attribute__ ((__packed__)) scm_family {
-	SCM_FAM_IP	= 0x01,
-	SCM_FAM_IP6	= 0x02,
-	SCM_FAM_MAX	= 0xFFFF
+	SCM_FAM_IP	= cpu_to_le16(0x01),
+	SCM_FAM_IP6	= cpu_to_le16(0x02),
+	SCM_FAM_MAX	= cpu_to_le16(0xFFFF)
 };
 
 enum __attribute__ ((__packed__)) scm_proto {
-	SCM_PROTO_TCP	= 0x01,
-	SCM_PROTO_UDP	= 0x02,
-	SCM_PROTO_MAX	= 0xFFFF
+	SCM_PROTO_TCP	= cpu_to_le16(0x01),
+	SCM_PROTO_UDP	= cpu_to_le16(0x02),
+	SCM_PROTO_MAX	= cpu_to_le16(0xFFFF)
 };
 
 enum __attribute__ ((__packed__)) scm_type {
@@ -52,9 +52,9 @@ enum __attribute__ ((__packed__)) scm_error {
 
 struct scm_packet_hdr {
 	enum scm_opcode	opcode;
-	__u8		msg_id;
-	__u8		sock_id;
-	__u8		payload_len;
+	__le16		msg_id;
+	__le32		sock_id;
+	__le32		payload_len;
 };
 
 struct scm_payload_data {
@@ -79,8 +79,8 @@ struct scm_payload_ack {
 };
 
 struct scm_payload_connect_ip6 {
-	__be32		flow_info;
-	__u32		scope_id;
+	__le32		flow_info;
+	__le32		scope_id;
 	char		ip_addr[16];
 };
 
@@ -96,7 +96,7 @@ union scm_payload_connect_ip_addr {
 struct scm_payload_connect_ip {
 	enum scm_family	family;
 	__u8					resvd;
-	__be16					port;
+	__le16					port;
 	union scm_payload_connect_ip_addr	addr;
 };
 
