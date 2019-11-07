@@ -150,6 +150,28 @@
 			}
 		} 
 	\end{figure}
+	\subsection{SCM Error Codes}
+	\begin{table}[H]
+		\begin{center}
+			\caption{ACK Codes for OPEN}
+			\label{tab:globalErrTable}
+			\begin{tabular}{l|l|l} 
+				\rowcolor{lightgray}
+				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\hline
+				0 & ESUCCESS & Success\\
+				1 & EHOSTERR & An error has occured on the host\\
+				2 & EINVAL & Invalid parameters sent\\
+				3 & EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
+				4 & ECONNREFUSED & No one is listening on remote address\\
+				5 & ENETUNREACH & Network is unreachable to the host\\
+				6 & ETIMEDOUT & Timeout while host attempted to perform operation.\\
+				7 & EMISMATCH & Family for CONNECT to not match socks type on OPEN.\\
+				8 & ENOTCONN & An operation has occured on a non-connected socket which requires a connection.\\
+				9 & ENOSOCK & Socket not found on the host \\
+			\end{tabular}
+		\end{center}
+	\end{table} \mbox{}\\
 	\subsection{SCM Packet Types}
 	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
 	\subsubsection{Common Fields}
@@ -203,7 +225,7 @@
 		\bitbox{32}{dPayloadLen} \\
 		\bitbox{32}{Payload Data...} \\
 	\end{bytefield}\\
-	\subsection{SCM Packets} \mbox{}
+	{SCM Packets} \mbox{}
 	All values in SCM packets are little endian unless otherwise noted. All IDs and integer values are unsigned unless otherwise noted.
 	\subsubsection{SCM Command Packet Formats}
 	\setcounter{secnumdepth}{5}
@@ -263,14 +285,14 @@
 		\begin{center}
 			\caption{ACK Codes for OPEN}
 			\label{tab:openErrTable}
-			\begin{tabular}{l|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{ID} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				1 & EHOSTERR & An error has occured on the host\\
-				2 & EINVAL & Host does not understand protocol or protocol family\\
-				3 & EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
+				ESUCCESS & Success\\
+				EHOSTERR & An error has occured on the host\\
+				EINVAL & Host does not understand protocol or protocol family\\
+				EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
@@ -351,16 +373,17 @@
 		\begin{center}
 			\caption{ACK Codes for CONNECT}
 			\label{tab:connErrTable}
-			\begin{tabular}{c|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				1 & EHOSTERR & An error has occured on the host\\
-				2 & ECONNREFUSED & No one is listening on remote address\\
-				3 & ENETUNREACH & Network is unreachable\\
-				4 & ETIMEDOUT & Timeout while attempting connection\\
-				5 & EMISMATCH & Family or protocol for CONNECT to not match socks type on OPEN.\\
+				ESUCCESS & Success\\
+				EHOSTERR & An error has occured on the host\\
+				ECONNREFUSED & No one is listening on remote address\\
+				ENETUNREACH & Network is unreachable\\
+				ETIMEDOUT & Timeout while attempting connection\\
+				EMISMATCH & Family or protocol for CONNECT to not match socks type on OPEN.\\
+				ENOSOCK & Sock ID not found on host. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
@@ -386,13 +409,14 @@
 		\begin{center}
 			\caption{ACK Codes for TRANSMIT}
 			\label{tab:transmitErrTable}
-			\begin{tabular}{c|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				-1 & EHOSTERR & An error has occured on the host\\
-				-2 & ENOTCONN & The socket on the remote side is not open and connected\\
+				ESUCCESS & Success\\
+				-EHOSTERR & An error has occured on the host\\
+				-ENOTCONN & The socket on the remote side is not open and connected\\
+				-ENOSOCK & Sock ID not found on host. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
