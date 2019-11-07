@@ -186,21 +186,20 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen} \\
-		\bitbox{32}{Data (Up to 60 bytes)...} \\
+		\bitbox{16}{wOPCode} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen} \\
+		\bitbox{32}{Data (Up to 52 bytes)...} \\
 	\end{bytefield}\\ 
 	\subsubsection{Data}
-	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 64 bytes.\\
+	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 52 bytes.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{Unused} \\
+		\bitbox{16}{wOPCode} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
 		\bitbox{32}{dPayloadLen} \\
 		\bitbox{32}{Payload Data...} \\
 	\end{bytefield}\\
@@ -251,10 +250,10 @@
 	\end{table}
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{bOPCode (0x00)} &
-			\bitbox{8}{bMsgID} &
-			\bitbox{8}{Reserved} &
-			\bitbox{8}{bPayloadLen (0x05)} \\
+			\bitbox{16}{wOPCode (0x00)} &
+			\bitbox{16}{wMsgID} \\
+			\bitbox{32}{dSockID} \\
+			\bitbox{32}{dPayloadLen (0x05)} \\
 			\bitbox{16}{wAddrFamily} &
 			\bitbox{16}{wProtocol} \\
 			\bitbox{8}{bType} \\
@@ -281,10 +280,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x06)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x00)} \\
+		\bitbox{16}{wOPCode (0x06)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -293,10 +292,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x02)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x00)} \\
+		\bitbox{16}{wOPCode (0x02)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -305,13 +304,11 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 	\bitheader{0,8,16,24,31} \\
-	\bitbox{8}{bOPCode (0x04)} &
-	\bitbox{8}{bMsgID} &
-	\bitbox{8}{bSockID} &
-	\bitbox{8}{bPayloadLen} \\
-	\bitbox{8}{bOrigOpCode} &
-	\bitbox{8}{Reserved} &
-	\bitbox{16}{Return data (Up to 56 bytes)}\\
+	\bitbox{16}{wOPCode (0x06)} &
+	\bitbox{16}{wMsgID} \\
+	\bitbox{32}{dSockID} \\
+	\bitbox{32}{dPayloadLen (0x00)} \\
+	\bitbox{32}{Return data (Up to 52 bytes)}\\
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
@@ -319,14 +316,14 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{bOPCode (0x01)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x08)} \\
+		\bitbox{16}{wOPCode (0x01)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x08)} \\
 		\bitbox{8}{bFamily (0x00)} &
 		\bitbox{8}{Reserved} &
-		\bitbox{16}{wPort (in Network Byte Order\footnotemark)}\\
-		\bitbox{32}{IP Address in Network Byte Order}
+		\bitbox{16}{wPort}\\
+		\bitbox{32}{IP Address (in Network Byte Order\footnotemark)}
 	\end{bytefield}\\
 	\footnotetext{POSIX.1-2017 expects the address and port to be in network byte order regardless of the host byte order.}
 	\\
@@ -334,13 +331,13 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{bOPCode (0x01)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x24)} \\
+		\bitbox{16}{wOPCode (0x01)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x28)} \\
 		\bitbox{8}{bFamily (0x01)} &
 		\bitbox{8}{Reserved} &
-		\bitbox{16}{wPort (in network byte order)}\\
+		\bitbox{16}{wPort}\\
 		\bitbox{32}{dFlowInfo} \\
 		\bitbox{32}{dScopeID} \\
 		\bitbox{32}{IP6 Addr In Network Byte Order...} \\
@@ -376,10 +373,9 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{bOPCode (0x03)} &
-			\bitbox{8}{bMsgID} &
-			\bitbox{8}{bSockID} &
-			\bitbox{8}{Reserved} \\
+			\bitbox{16}{wOPCode (0x03)} &
+			\bitbox{16}{wMsgID} \\
+			\bitbox{32}{dSockID} \\
 			\bitbox{32}{dPayloadLen} \\
 			\wordbox[tlr]{2}{Payload data...} \\
 			\bitbox[t]{32}{}
@@ -405,11 +401,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x05)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{Reserved} \\
-		\bitbox{32}{dPayloadLen}\\
+		\bitbox{16}{wOPCode (0x05)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen} \\
 		\wordbox[tlr]{2}{Payload data...} \\
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
