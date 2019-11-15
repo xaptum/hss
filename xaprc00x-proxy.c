@@ -5,12 +5,14 @@
  *	are called by the USB system when a message is completed.
  */
 
- #include <linux/socket.h>
+#include <linux/socket.h>
 #include <linux/net.h>
+#include <linux/workqueue.h>
 #include <net/sock.h>
 #include "scm.h"
 #include "xaprc00x-proxy.h"
 #include "xaprc00x-sockets.h"
+#include "xaprc00x-usb.h"
 
 static int get_proxy_socket_id(__u16 dev, __u8 sock_id)
 {
@@ -20,6 +22,48 @@ static int get_proxy_socket_id(__u16 dev, __u8 sock_id)
 static __u8 get_device_socket_id(int sock_id)
 {
 	return sock_id & 0xFF;
+}
+
+struct work_data_t {
+	struct work_struct work;
+	int packet_len;
+	u16 dev;
+	void *context; /* Data to pass back to USB functions */
+	unsigned char data[];
+};
+
+struct workqueue_struct *xaprc00x_proxy_init(int dev, void *context)
+{
+	int ret;
+	char name[11];
+	struct workqueue_struct *wq = NULL;
+
+	if (dev < 0 || dev > 255) {
+		goto exit;
+	}
+
+	/* Name and allocate the workqueue */
+	sprintf(name,"scm_wq_%d",dev);
+	wq = create_workqueue(name);
+	if (!wq) {
+		goto exit;
+	}
+
+	/* Initialize the proxy */
+	ret = xaprc00x_socket_mgr_init();
+
+	if (ret) {
+		destroy_workqueue(wq);
+		wq = NULL;
+	}
+exit:
+	return wq;
+}
+
+void xaprc00x_proxy_destroy(struct workqueue_struct *wq)
+{
+	destroy_workqueue(wq);
+	xaprc00x_socket_mgr_destroy();
 }
 
 /**
@@ -58,14 +102,14 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	ack->hdr.payload_len = 1;
 	switch (ret) {
 	case 0:
-		ack->ack.open = SCM_E_SUCCESS;
-		ack->hdr.sock_id = id;
+		ack->ack.open.code = SCM_E_SUCCESS;
+		ack->ack.open.sock_id = id;
 		break;
 	case -EINVAL:
-		ack->ack.open = SCM_E_INVAL;
+		ack->ack.open.code = SCM_E_INVAL;
 		break;
 	default:
-		ack->ack.open = SCM_E_HOSTERR;
+		ack->ack.open.code = SCM_E_HOSTERR;
 		break;
 	}
 	ack->ack.connect = ret;
@@ -148,16 +192,20 @@ static enum scm_type xaprc00x_type_to_host(enum scm_type dev_type)
  * Performs an OPEN operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack)
+	struct scm_packet **ack)
 {
+
 	int ret;
 	int family, type, protocol;
 	struct scm_payload_open *payload;
-	int id = get_proxy_socket_id(dev,0);
+	int sock_id;
+
+	/* Seperate the socket ID out of the device ID */
+	sock_id = get_proxy_socket_id(dev,0);
 
 	/* Find the smallest unoccupied ID for this device */
-	while (xaprc00x_socket_exists(id))
-		id++;
+	while (xaprc00x_socket_exists(sock_id))
+		sock_id++;
 
 	 payload = &packet->open;
 
@@ -180,11 +228,12 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 		goto fill_ack;
 	}
 
-	ret = xaprc00x_socket_create(id, family, type, protocol);
+	ret = xaprc00x_socket_create(sock_id, family, type, protocol);
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	xaprc00x_proxy_fill_ack_open(packet, ack, ret, get_device_socket_id(id));
+	*ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
+	xaprc00x_proxy_fill_ack_open(packet, *ack, ret, get_device_socket_id(sock_id));
 }
 
 /**
@@ -197,7 +246,7 @@ fill_ack:
  * Performs an CONNECT operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack)
+	struct scm_packet **ack)
 {
 	int ret;
 	struct scm_payload_connect_ip *payload = &packet->connect;
@@ -218,7 +267,8 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 		ret = -EINVAL;
 		break;
 	}
-	xaprc00x_proxy_fill_ack_connect(packet, ack, ret);
+	*ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
+	xaprc00x_proxy_fill_ack_connect(packet, *ack, ret);
 }
 
 /**
@@ -231,7 +281,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
  * Performs an CLOSE operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack)
+	struct scm_packet **ack)
 {
 	struct scm_packet_hdr *hdr = &packet->hdr;
 	int id = get_proxy_socket_id(dev, hdr->sock_id);
@@ -239,7 +289,25 @@ void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
 	xaprc00x_socket_close(id);
 
 	/* Close ACKs do not contain status data. */
-	xaprc00x_proxy_fill_ack_common(hdr,ack);
+	*ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
+	xaprc00x_proxy_fill_ack_common(hdr,*ack);
+}
+
+/* Can be called in an atomic context */
+void xaprc00x_proxy_rcv_cmd(struct workqueue_struct *wq,
+	struct scm_packet *packet, int packet_len, u16 dev, void *context)
+{
+	struct work_data_t *newwork;
+
+	newwork = kmalloc(sizeof(struct work_data_t)+packet_len, GFP_ATOMIC);
+
+	newwork->context = context;
+	newwork->dev = dev;
+
+	newwork->packet_len = packet_len;
+	memcpy(newwork->data,packet,packet_len);
+	INIT_WORK(&newwork->work, xaprc00x_proxy_process_cmd);
+	queue_work(wq,&newwork->work);
 }
 
 /**
@@ -252,22 +320,33 @@ void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
  * Acts as an intermediary between USB and the socket interface. Ack will be
  * ignored if the command type does not reply (such as recieving an ACK).
  */
-void xaprc00x_proxy_process_cmd(struct scm_packet *packet, int packet_len,
-	u16 dev, struct scm_packet *ack)
+void xaprc00x_proxy_process_cmd(struct work_struct *work)
 {
+	struct work_data_t *work_data;
+	struct scm_packet *ack = NULL;
+	struct scm_packet *packet;
+	int packet_len;
+	int dev;
+
+	work_data = (struct work_data_t*)work;
+	packet = (struct scm_packet *)&work_data->data;
+	packet_len = work_data->packet_len;
+	dev = work_data->dev;
+
 	/* Sanity check the length against the packet definition */
-	if (packet->hdr.payload_len+sizeof(struct scm_packet_hdr) != packet_len)
+	if (packet->hdr.payload_len+sizeof(struct scm_packet_hdr) > packet_len) {
 		return;
+	}
 
 	switch (packet->hdr.opcode) {
 	case SCM_OP_OPEN:
-		xaprc00x_proxy_process_open(packet, dev, ack);
+		xaprc00x_proxy_process_open(packet, dev, &ack);
 		break;
 	case SCM_OP_CONNECT:
-		xaprc00x_proxy_process_connect(packet, dev, ack);
+		xaprc00x_proxy_process_connect(packet, dev, &ack);
 		break;
 	case SCM_OP_CLOSE:
-		xaprc00x_proxy_process_close(packet, dev, ack);
+		xaprc00x_proxy_process_close(packet, dev, &ack);
 		break;
 	case SCM_OP_SHUTDOWN:
 	case SCM_OP_TRANSMIT:
@@ -275,5 +354,10 @@ void xaprc00x_proxy_process_cmd(struct scm_packet *packet, int packet_len,
 	case SCM_OP_ACKDATA:
 	default:
 		break;
+	}
+
+	if (ack) {
+		xaprc00x_cmd_out(work_data->context, ack,
+			sizeof(*ack)+ack->hdr.payload_len);
 	}
 }

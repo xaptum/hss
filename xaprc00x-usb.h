@@ -10,4 +10,7 @@
 #define USB_VENDOR_ID_XAPTUM	 0x2fe0
 #define USB_SUBCLASS_SCM_XAPTUM   0xab
 
+struct usb_xaprc00x;
+int xaprc00x_cmd_out(struct usb_xaprc00x *dev, void *msg, int msg_len);
+
 #endif

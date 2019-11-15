@@ -31,6 +31,11 @@ int xaprc00x_socket_mgr_init(void)
 	return rhashtable_init(&socket_hash_table, &ht_parms);
 }
 
+void xaprc00x_socket_mgr_destroy(void)
+{
+	rhashtable_destroy(&socket_hash_table);
+}
+
 /**
  * xaprc00x_get_socket - Retrieves a stored socket
  *
@@ -84,7 +89,7 @@ int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 		goto exit;
 
 	/* Register the socket on the table */
-	scm_sock = kzalloc(sizeof(struct scm_host_socket), GFP_KERNEL);
+	scm_sock = kzalloc(sizeof(struct scm_host_socket), GFP_ATOMIC);
 	if (!scm_sock) {
 		ret = -ENOMEM;
 		sock_release(sock);

@@ -8,6 +8,8 @@
 
 int xaprc00x_socket_mgr_init(void);
 
+void xaprc00x_socket_mgr_destroy(void);
+
 int xaprc00x_socket_create(int socket_id, unsigned short int family, int type,
 	int protocol);
 
