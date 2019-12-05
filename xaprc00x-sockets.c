@@ -28,12 +28,18 @@ static struct rhashtable_params ht_parms = {
 
 int xaprc00x_socket_mgr_init(void)
 {
-	return rhashtable_init(&socket_hash_table, &ht_parms);
+	int ret = 0;
+	/* Init the hashtable if it has not already been initialized. */
+	if (!socket_hash_table.tbl)
+		ret = rhashtable_init(&socket_hash_table, &ht_parms);
+	return ret;
 }
 
 void xaprc00x_socket_mgr_destroy(void)
 {
+	/* Destroy and clear the hash table */
 	rhashtable_destroy(&socket_hash_table);
+	memset(&socket_hash_table, 0, sizeof(socket_hash_table));
 }
 
 /**
@@ -95,8 +101,8 @@ int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 		sock_release(sock);
 	} else {
 		scm_sock->sock = sock;
-		rhashtable_lookup_insert_fast(&socket_hash_table, &scm_sock->hash,
-			ht_parms);
+		rhashtable_lookup_insert_fast(&socket_hash_table,
+			&scm_sock->hash, ht_parms);
 		ret = 0;
 	}
 exit:

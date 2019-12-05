@@ -12,12 +12,12 @@
 #include <net/sock.h>
 #include "scm.h"
 
-void xaprc00x_proxy_process_cmd(struct work_struct *work);
+static void xaprc00x_proxy_process_cmd(struct work_struct *context);
 
-struct workqueue_struct *xaprc00x_proxy_init(int dev, void *context);
+void *xaprc00x_proxy_init(void *context);
 
-void xaprc00x_proxy_rcv_cmd(struct workqueue_struct *wq,
-	struct scm_packet *packet, int packet_len, u16 dev, void *context);
+void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,
+	int packet_len, void *context);
 
-void xaprc00x_proxy_destroy(struct workqueue_struct *wq);
+void xaprc00x_proxy_destroy(void *context);
 #endif

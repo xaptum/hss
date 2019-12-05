@@ -11,6 +11,6 @@
 #define USB_SUBCLASS_SCM_XAPTUM   0xab
 
 struct usb_xaprc00x;
-int xaprc00x_cmd_out(struct usb_xaprc00x *dev, void *msg, int msg_len);
-
+int xaprc00x_cmd_out(void *context, void *msg, int msg_len);
+void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev);
 #endif
