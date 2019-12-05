@@ -37,6 +37,9 @@ struct work_data_t {
 	unsigned char data[];
 };
 
+/* Forward declarations */
+static void xaprc00x_proxy_process_cmd(struct work_struct *work);
+
 static u16 xaprc00x_dev_counter;
 
 /**
@@ -108,35 +111,9 @@ static void xaprc00x_proxy_fill_ack_common(struct scm_packet_hdr *orig,
 {
 	ack->hdr.opcode = SCM_OP_ACK;
 	ack->hdr.msg_id = orig->msg_id;
-	ack->hdr.payload_len = 0;
+	ack->hdr.payload_len = 1;
 	ack->hdr.sock_id = orig->sock_id;
 	ack->ack.orig_opcode = orig->opcode;
-}
-
-/**
- * xaprc00x_proxy_fill_host_error - Fill an ACK packet indicating a host error
- *
- * @packet The packet being reponded to
- * @ack The ACK packet to populate
- *
- * Fills an ACK pakcet (ACKing any opcode) with a SCM_E_HOSTERR response code.
- */
-static void xaprc00x_proxy_fill_host_error(struct scm_packet_hdr *packet,
-	struct scm_packet *ack)
-{
-	xaprc00x_proxy_fill_ack_common(packet, ack);
-
-	switch (packet->opcode) {
-	case SCM_OP_OPEN:
-		ack->ack.open.code = SCM_E_HOSTERR;
-		break;
-	case SCM_OP_CONNECT:
-		ack->ack.connect = SCM_E_HOSTERR;
-		break;
-	case SCM_OP_CLOSE:
-	default:
-		break;
-	}
 }
 
 /**
@@ -153,20 +130,19 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	struct scm_packet *ack, int ret, u8 id)
 {
 	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
-	ack->hdr.payload_len = 1;
+	ack->hdr.payload_len += sizeof(ack->ack.open);
 	switch (ret) {
 	case 0:
-		ack->ack.open.code = SCM_E_SUCCESS;
+		ack->ack.code = SCM_E_SUCCESS;
 		ack->ack.open.sock_id = id;
 		break;
 	case -EINVAL:
-		ack->ack.open.code = SCM_E_INVAL;
+		ack->ack.code = SCM_E_INVAL;
 		break;
 	default:
-		ack->ack.open.code = SCM_E_HOSTERR;
+		ack->ack.code = SCM_E_HOSTERR;
 		break;
 	}
-	ack->ack.connect = ret;
 }
 
 /**
@@ -182,22 +158,21 @@ static void xaprc00x_proxy_fill_ack_connect(struct scm_packet *packet,
 	struct scm_packet *ack, int ret)
 {
 	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
-	ack->hdr.payload_len = 1;
 	switch (ret) {
 	case 0:
-		ack->ack.connect = SCM_E_SUCCESS;
+		ack->ack.code = SCM_E_SUCCESS;
 		break;
 	case -ECONNREFUSED:
-		ack->ack.connect = SCM_E_CONNREFUSED;
+		ack->ack.code = SCM_E_CONNREFUSED;
 		break;
 	case -ENETUNREACH:
-		ack->ack.connect = SCM_E_NETUNREACH;
+		ack->ack.code = SCM_E_NETUNREACH;
 		break;
 	case -ETIMEDOUT:
-		ack->ack.connect = SCM_E_TIMEDOUT;
+		ack->ack.code = SCM_E_TIMEDOUT;
 		break;
 	default:
-		ack->ack.connect = SCM_E_HOSTERR;
+		ack->ack.code = SCM_E_HOSTERR;
 		break;
 	}
 }
@@ -387,7 +362,7 @@ void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,
 
 
 /**
- * xaprc00x_proxy_process_checked_cmd -
+ * xaprc00x_proxy_run_host_cmd -
  * Helper function for xaprc00x_proxy_process_cmd
  *
  * @packet The packet to process
@@ -457,7 +432,7 @@ static void xaprc00x_proxy_process_cmd(struct work_struct *work)
 	expected_packet_len =
 		packet->hdr.payload_len +
 		sizeof(struct scm_packet_hdr);
-	if (expected_packet_len != packet_len) {
+	if (expected_packet_len > packet_len) {
 		pr_err("Expected packet size %db, got %db",
 			expected_packet_len, packet_len);
 		goto exit;

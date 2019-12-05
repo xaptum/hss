@@ -68,19 +68,13 @@ struct scm_payload_open {
 	enum scm_type	type;
 };
 
-struct scm_payload_ack_open {
-	__u8	code;
-	__u32	sock_id;
-};
-
 struct scm_payload_ack {
-	enum scm_opcode	orig_opcode;
-	__u8			rsvd;
-	union {
-		char				close[0];
-		struct scm_payload_ack_open	open;
-		__u8				connect;
-	};
+        enum scm_opcode         orig_opcode;
+        enum scm_error          code;
+        union {
+                struct { __u8 rsvd; __u32 sock_id; } open;
+                char    empty[0];
+        };
 };
 
 struct scm_payload_connect_ip6 {

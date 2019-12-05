@@ -12,8 +12,6 @@
 #include <net/sock.h>
 #include "scm.h"
 
-static void xaprc00x_proxy_process_cmd(struct work_struct *context);
-
 void *xaprc00x_proxy_init(void *context);
 
 void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,

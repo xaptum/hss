@@ -280,7 +280,7 @@
 			\bitbox{16}{wProtocol} \\
 			\bitbox{8}{bType} \\
 	\end{bytefield}\\
-	ACK will return with a 1-byte unsigned integer return code, the value of this ACKs headers Sock ID is the new sock ID created by the host.
+	Ack will return with a 4-byte integer representing the new Sock ID. This value will be alligned to a 4-byte interval. 
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for OPEN}
@@ -329,8 +329,11 @@
 	\bitbox{16}{wOPCode (0x06)} &
 	\bitbox{16}{wMsgID} \\
 	\bitbox{32}{dSockID} \\
-	\bitbox{32}{dPayloadLen (0x00)} \\
-	\bitbox{32}{Return data (Up to 52 bytes)}\\
+	\bitbox{32}{dPayloadLen} \\
+	\bitbox{16}{wOrigOPCode} &
+	\bitbox{8}{Return Code} &
+	\bitbox{8}{Return Data...} \\
+	\bitbox{32}{...Return data (Up to 49 bytes)}\\
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
@@ -367,7 +370,7 @@
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
-	Both connect types will send an ACK with a 1-byte unsigned integer as a response.
+    Upon completion an ACK command will be sent witn no return data. 
 	\\
 	\begin{table}[H]
 		\begin{center}
@@ -404,7 +407,7 @@
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\\
-	ACK will return as a 4-byte signed integer. On error the a negative number will be returned. Nonnegative return codes indicate a succesful trasnfer while positive return codes also indicate flow indicators (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR).\\
+	ACK will return with a 4-byte signed integer. On error the a negative number will be returned. Nonnegative return codes indicate a succesful trasnfer while positive return codes also indicate flow indicators (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR).\\
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for TRANSMIT}
@@ -429,6 +432,9 @@
 		\bitbox{16}{wMsgID} \\
 		\bitbox{32}{dSockID} \\
 		\bitbox{32}{dPayloadLen} \\
+		\bitbox{16}{wOrigOPCode} &
+		\bitbox{8}{Return Code} &
+		\bitbox{8}{Payload Data...} \\
 		\wordbox[tlr]{2}{Payload data...} \\
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
