@@ -17,8 +17,6 @@ struct scm_host_socket {
 	struct rhash_head hash;
 };
 
-static struct rhashtable socket_hash_table = {0};
-
 static struct rhashtable_params ht_parms = {
 	.nelem_hint = 8,
 	.key_len = sizeof(int),
@@ -26,20 +24,55 @@ static struct rhashtable_params ht_parms = {
 	.head_offset = offsetof(struct scm_host_socket, hash),
 };
 
-int xaprc00x_socket_mgr_init(void)
+int xaprc00x_socket_mgr_init(struct rhashtable **table)
 {
+	struct rhashtable *new_table;
 	int ret = 0;
-	/* Init the hashtable if it has not already been initialized. */
-	if (!socket_hash_table.tbl)
-		ret = rhashtable_init(&socket_hash_table, &ht_parms);
+
+	new_table = kzalloc(sizeof(struct rhashtable), GFP_KERNEL);
+	/* Init a new hash table */
+	ret = rhashtable_init(new_table, &ht_parms);
+	if(!ret)
+		*table = new_table;
+	else
+		kfree(new_table);
 	return ret;
 }
 
-void xaprc00x_socket_mgr_destroy(void)
+static void xaprc00x_socket_free(struct scm_host_socket *socket)
 {
+	sock_release(socket->sock);
+	kfree(socket);
+}
+
+/**
+ * xaprc00x_socket_mgr_destroy - 
+ *
+ * @table The table to search
+ * @params The tables parameters
+ * @key The key to search the table for
+ *
+ * Returns: Number of bytes received or an error code.
+ */
+void xaprc00x_socket_mgr_destroy(struct rhashtable *socket_hash_table)
+{
+	const struct bucket_table *tbl;
+	struct scm_host_socket *sk;
+	struct rhash_head *pos;
+	int i;
+
+	rcu_read_lock();
+	tbl = rht_dereference_rcu(socket_hash_table->tbl, socket_hash_table);
+	for (i = 0; i < tbl->size; i++) {
+		rht_for_each_entry_rcu(sk, pos, tbl, i, hash) {
+			xaprc00x_socket_free(sk);
+		}
+	}
+	rcu_read_unlock();
+
 	/* Destroy and clear the hash table */
-	rhashtable_destroy(&socket_hash_table);
-	memset(&socket_hash_table, 0, sizeof(socket_hash_table));
+	rhashtable_destroy(socket_hash_table);
+	kfree(socket_hash_table);
 }
 
 /**
@@ -51,14 +84,15 @@ void xaprc00x_socket_mgr_destroy(void)
  *
  * Returns: Number of bytes received or an error code.
  */
-static struct scm_host_socket *xaprc00x_get_socket(int *key)
+static struct scm_host_socket *xaprc00x_get_socket(int *key,
+	struct rhashtable *socket_hash_table)
 {
-	return rhashtable_lookup_fast(&socket_hash_table, key, ht_parms);
+	return rhashtable_lookup_fast(socket_hash_table, key, ht_parms);
 }
 
-int xaprc00x_socket_exists(int key)
+int xaprc00x_socket_exists(int key, struct rhashtable *socket_hash_table)
 {
-	return (xaprc00x_get_socket(&key) != NULL);
+	return (xaprc00x_get_socket(&key, socket_hash_table) != NULL);
 }
 
 /**
@@ -76,14 +110,15 @@ int xaprc00x_socket_exists(int key)
  *
  * Returns: 0 on successor an error code
  */
-int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
+int xaprc00x_socket_create(int socket_id, int family, int type, int protocol,
+	struct rhashtable *socket_hash_table)
 {
 	int ret;
 	struct socket *sock = NULL;
 	struct scm_host_socket *scm_sock;
 
 	/* Prevent overwriting an existing socket */
-	if (xaprc00x_get_socket(&socket_id)) {
+	if (xaprc00x_get_socket(&socket_id, socket_hash_table)) {
 		ret = -EEXIST;
 		goto exit;
 	}
@@ -101,7 +136,7 @@ int xaprc00x_socket_create(int socket_id, int family, int type, int protocol)
 		sock_release(sock);
 	} else {
 		scm_sock->sock = sock;
-		rhashtable_lookup_insert_fast(&socket_hash_table,
+		rhashtable_lookup_insert_fast(socket_hash_table,
 			&scm_sock->hash, ht_parms);
 		ret = 0;
 	}
@@ -114,16 +149,14 @@ exit:
  *
  * @socket_id The socket id to close
  */
-void xaprc00x_socket_close(int socket_id)
+void xaprc00x_socket_close(int socket_id, struct rhashtable *socket_hash_table)
 {
 	struct scm_host_socket *socket;
 	/* Close and free the given socket if it can be found */
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (socket) {
-		rhashtable_remove_fast(&socket_hash_table, &socket->hash,
-			ht_parms);
-		sock_release(socket->sock);
-		kfree(socket);
+		rhashtable_remove_fast(socket_hash_table, &socket->hash, ht_parms);
+		xaprc00x_socket_free(socket);
 	}
 }
 
@@ -133,11 +166,12 @@ void xaprc00x_socket_close(int socket_id)
  * @socket_id The socket id to connect
  * @how The direction to shut down
  */
-void xaprc00x_socket_shutdown(int socket_id, enum sock_shutdown_cmd how)
+void xaprc00x_socket_shutdown(int socket_id, enum sock_shutdown_cmd how,
+	struct rhashtable *socket_hash_table)
 {
 	struct scm_host_socket *socket;
 	/* Close the given socket if it can be found */
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (socket)
 		kernel_sock_shutdown(socket->sock, how);
 }
@@ -212,13 +246,13 @@ static int xaprc00x_addr_in6(char *ip_addr,
  * Returns: Result from xaprc00x_socket_connect
  */
 int xaprc00x_socket_connect_in4(int socket_id, char *ip_addr, int ip_len,
-	__be16 port, int flags)
+	__be16 port, int flags, struct rhashtable *socket_hash_table)
 {
 	struct sockaddr_in addr = {0};
 	struct scm_host_socket *socket;
 	int ret = 0;
 
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (!socket) {
 		ret = -EEXIST;
 		goto exit;
@@ -246,13 +280,14 @@ exit:
  * Returns: 0 on success or an error code
  */
 int xaprc00x_socket_connect_in6(int socket_id, char *ip_addr, int ip_len,
-	__be16 port, __be32 flow, __u32 scope, int flags)
+	__be16 port, __be32 flow, __u32 scope, int flags,
+	struct rhashtable *socket_hash_table)
 {
 	struct sockaddr_in6 addr = {0};
 	struct scm_host_socket *socket;
 	int ret = 0;
 
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (!socket) {
 		ret = -EEXIST;
 		goto exit;
@@ -276,14 +311,15 @@ exit:
  *
  * Returns: Number of bytes transmitted or an error code.
  */
-int xaprc00x_socket_write(int socket_id, void *buf, int len)
+int xaprc00x_socket_write(int socket_id, void *buf, int len,
+	struct rhashtable *socket_hash_table)
 {
 	struct scm_host_socket *socket;
 	int ret = -EEXIST;
 	struct msghdr msg;
 	struct kvec vec;
 
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (socket) {
 		msg.msg_control = NULL;
 		msg.msg_controllen = 0;
@@ -306,14 +342,15 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len)
  *
  * Returns: Number of bytes received or an error code.
  */
-int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags)
+int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags,
+	struct rhashtable *socket_hash_table)
 {
 	struct scm_host_socket *socket;
 	struct msghdr msg;
 	struct kvec vec;
 	int ret = -EEXIST;
 
-	socket = xaprc00x_get_socket(&socket_id);
+	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
 	if (socket) {
 		msg.msg_control = NULL;
 		msg.msg_controllen = 0;
