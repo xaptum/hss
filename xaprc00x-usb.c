@@ -84,11 +84,10 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 	int error;
 
 	error = usb_find_common_endpoints(dev->interface->cur_altsetting,
-			&ep_in, NULL, &ep_cmd_in, &ep_cmd_out);
+			NULL, NULL, &ep_cmd_in, &ep_cmd_out);
 
 	if (!error) {
 		/* Store the endpoint addresses */
-		dev->bulk_in_endpointAddr = ep_in->bEndpointAddress;
 		dev->cmd_in_endpointAddr = ep_cmd_in->bEndpointAddress;
 		dev->cmd_out_endpointAddr = ep_cmd_out->bEndpointAddress;
 		dev->cmd_interval = ep_cmd_in->bInterval;
