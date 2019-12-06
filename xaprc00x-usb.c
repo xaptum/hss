@@ -20,8 +20,6 @@
 #include "xaprc00x-usb.h"
 #include "xaprc00x-backports.h"
 #include "xaprc00x-proxy.h"
-/* TODO Remove refernces to this file in the USB driver */
-#include "xaprc00x-sockets.h"
 #include "scm.h"
 /* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xaprc00x_device_table[] = {
