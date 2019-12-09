@@ -14,18 +14,9 @@
 #include "xaprc00x-sockets.h"
 #include "xaprc00x-usb.h"
 
-static int get_proxy_socket_id(__u16 dev, __u8 sock_id)
-{
-	return (dev<<8) | sock_id;
-}
-
-static __u8 get_device_socket_id(int sock_id)
-{
-	return sock_id & 0xFF;
-}
-
 struct xaprc00x_proxy_context {
 	u16 proxy_id;
+	u32 sock_counter;
 	struct workqueue_struct *proxy_wq;
 	struct rhashtable *socket_table;
 	void *usb_context;
@@ -77,6 +68,7 @@ void *xaprc00x_proxy_init(void *usb_context)
 	context->proxy_id = dev;
 	context->proxy_wq = wq;
 	context->usb_context = usb_context;
+	context->sock_counter = 0;
 
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
@@ -132,7 +124,7 @@ static void xaprc00x_proxy_fill_ack_common(struct scm_packet_hdr *orig,
  * Fills an ACK packet after an OPEN procedure. ID is ignored unless ret==0
  */
 static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
-	struct scm_packet *ack, int ret, u8 id)
+	struct scm_packet *ack, int ret, int id)
 {
 	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
 	ack->hdr.payload_len += sizeof(ack->ack.open);
@@ -177,7 +169,6 @@ static void xaprc00x_proxy_fill_ack_connect(struct scm_packet *packet,
 		ack->ack.code = SCM_E_TIMEDOUT;
 		break;
 	default:
-		printk("connect error %d", ret);
 		ack->ack.code = SCM_E_HOSTERR;
 		break;
 	}
@@ -236,14 +227,10 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	struct scm_payload_open *payload;
 	int sock_id;
 
-	/* Seperate the socket ID out of the device ID */
-	sock_id = get_proxy_socket_id(dev, 0);
+	/* Get a new sock ID */
+	sock_id = context->sock_counter++;
 
-	/* Find the smallest unoccupied ID for this device */
-	while (xaprc00x_socket_exists(sock_id, context->socket_table))
-		sock_id++;
-
-	 payload = &packet->open;
+	payload = &packet->open;
 
 	/* Translate the SCM parameters to ones the socket interface */
 	family = xaprc00x_family_to_host(payload->addr_family);
@@ -269,8 +256,7 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	xaprc00x_proxy_fill_ack_open(packet, ack, ret,
-		get_device_socket_id(sock_id));
+	xaprc00x_proxy_fill_ack_open(packet, ack, ret, sock_id);
 }
 
 /**
@@ -288,7 +274,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	int ret;
 	struct scm_payload_connect_ip *payload = &packet->connect;
 	struct scm_packet_hdr *hdr = &packet->hdr;
-	int id = get_proxy_socket_id(dev, hdr->sock_id);
+	int id = hdr->sock_id;
 
 	switch (payload->family) {
 	case SCM_FAM_IP:
@@ -333,7 +319,7 @@ void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
 	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
 {
 	struct scm_packet_hdr *hdr = &packet->hdr;
-	int id = get_proxy_socket_id(dev, hdr->sock_id);
+	int id = hdr->sock_id;
 
 	xaprc00x_socket_close(id, context->socket_table);
 

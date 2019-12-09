@@ -135,6 +135,7 @@ int xaprc00x_socket_create(int socket_id, int family, int type, int protocol,
 		ret = -ENOMEM;
 		sock_release(sock);
 	} else {
+		scm_sock->sock_id = socket_id;
 		scm_sock->sock = sock;
 		rhashtable_lookup_insert_fast(socket_hash_table,
 			&scm_sock->hash, ht_parms);
@@ -199,6 +200,7 @@ static int xaprc00x_addr_in4(char *ip_addr, int ip_len, __be16 port,
 		memcpy(&addr->sin_addr, ip_addr, ip_len);
 		ret = 0;
 	}
+
 	return ret;
 }
 
