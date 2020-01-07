@@ -330,6 +330,9 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 		vec.iov_base = buf;
 
 		ret = kernel_sendmsg(socket->sock, &msg, &vec, len, len);
+
+		print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET,
+			16, 1, buf, len, true);
 	}
 	return ret;
 }
