@@ -16,7 +16,6 @@
 
 struct xaprc00x_proxy_context {
 	u16 proxy_id;
-	u32 sock_counter;
 	struct workqueue_struct *proxy_wq;
 	struct rhashtable *socket_table;
 	void *usb_context;
@@ -68,7 +67,6 @@ void *xaprc00x_proxy_init(void *usb_context)
 	context->proxy_id = dev;
 	context->proxy_wq = wq;
 	context->usb_context = usb_context;
-	context->sock_counter = 0;
 
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
@@ -131,6 +129,7 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	switch (ret) {
 	case 0:
 		ack->ack.code = SCM_E_SUCCESS;
+		ack->hdr.sock_id = id;
 		ack->ack.open.sock_id = id;
 		break;
 	case -EINVAL:
@@ -225,10 +224,6 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	int ret;
 	int family, type, protocol;
 	struct scm_payload_open *payload;
-	int sock_id;
-
-	/* Get a new sock ID */
-	sock_id = context->sock_counter++;
 
 	payload = &packet->open;
 
@@ -250,13 +245,12 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 		ret = -EINVAL;
 		goto fill_ack;
 	}
-
-	ret = xaprc00x_socket_create(sock_id, family, type, protocol,
+	ret = xaprc00x_socket_create(payload->handle, family, type, protocol,
 		context->socket_table);
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	xaprc00x_proxy_fill_ack_open(packet, ack, ret, sock_id);
+	xaprc00x_proxy_fill_ack_open(packet, ack, ret, payload->handle);
 }
 
 /**
@@ -355,7 +349,6 @@ void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,
 	queue_work(proxy_ctx->proxy_wq, &newwork->work);
 }
 
-
 /**
  * xaprc00x_proxy_run_host_cmd -
  * Helper function for xaprc00x_proxy_process_cmd
@@ -442,3 +435,4 @@ static void xaprc00x_proxy_process_cmd(struct work_struct *work)
 exit:
 	kfree(work);
 }
+
