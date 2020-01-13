@@ -143,6 +143,7 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	switch (ret) {
 	case 0:
 		ack->ack.code = SCM_E_SUCCESS;
+		ack->hdr.sock_id = id;
 		ack->ack.open.sock_id = id;
 		break;
 	case -EINVAL:
@@ -237,10 +238,6 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	int ret;
 	int family, type, protocol;
 	struct scm_payload_open *payload;
-	int sock_id;
-
-	/* Get a new sock ID */
-	sock_id = context->sock_counter++;
 
 	payload = &packet->open;
 
@@ -262,13 +259,12 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 		ret = -EINVAL;
 		goto fill_ack;
 	}
-
-	ret = xaprc00x_socket_create(sock_id, family, type, protocol,
+	ret = xaprc00x_socket_create(payload->handle, family, type, protocol,
 		context->socket_table);
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	xaprc00x_proxy_fill_ack_open(packet, ack, ret, sock_id);
+	xaprc00x_proxy_fill_ack_open(packet, ack, ret, payload->handle);
 }
 
 /**
@@ -386,8 +382,6 @@ void xaprc00x_proxy_rcv_data(struct scm_packet *packet,
 	struct xaprc00x_proxy_context *proxy_ctx =
 		(struct xaprc00x_proxy_context *) context;
 
-	printk(KERN_INFO "xaprc00x_proxy_rcv_data");
-
 	newwork = kmalloc(sizeof(struct work_data_t) + packet_len, GFP_ATOMIC);
 
 	newwork->context = proxy_ctx;
@@ -496,11 +490,8 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 	struct scm_packet *ack =
 		xaprc00x_get_ack_buf(context->usb_context);
 
-	printk(KERN_INFO "xaprc00x_proxy_run_in_transmit");
-
 	switch (packet->hdr.opcode) {
 	case SCM_OP_TRANSMIT:
-		printk(KERN_INFO "xaprc00x_proxy_run_in_transmit SCM_OP_TRANSMIT");
 		xaprc00x_socket_write(packet->hdr.sock_id, &packet->scm_payload_none,
 			packet->hdr.payload_len, context->socket_table);
 
@@ -524,8 +515,6 @@ static void xaprc00x_proxy_process_data(struct work_struct *work)
 	struct scm_packet *ack;
 	int expected_packet_len;
 
-	printk(KERN_INFO "xaprc00x_proxy_process_data");
-
 	work_data = (struct work_data_t *) work;
 	proxy_context = work_data->context;
 	packet = (struct scm_packet *)&work_data->data;
@@ -544,7 +533,6 @@ static void xaprc00x_proxy_process_data(struct work_struct *work)
 	ack = xaprc00x_proxy_run_in_transmit(packet, proxy_context);
 
 	if (ack) {
-		printk(KERN_INFO "xaprc00x_proxy_process_data ack");
 		xaprc00x_cmd_out(proxy_context->usb_context, ack,
 			sizeof(*ack)+ack->hdr.payload_len);
 	}

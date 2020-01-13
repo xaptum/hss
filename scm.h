@@ -66,6 +66,7 @@ struct scm_payload_open {
 	enum scm_family	addr_family;
 	enum scm_proto	protocol;
 	enum scm_type	type;
+	__le32		handle;
 };
 
 struct scm_payload_ack {

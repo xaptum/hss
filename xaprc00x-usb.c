@@ -253,7 +253,6 @@ static void xaprc00x_read_cmd_callback(struct urb *urb)
 static void xaprc00x_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
-	printk(KERN_INFO "xaprc00x_read_bulk_callback status=%d", urb->status);
 	if (urb->status == 0) {
 		xaprc00x_proxy_rcv_data((void *)dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
