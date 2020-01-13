@@ -162,22 +162,6 @@ void xaprc00x_socket_close(int socket_id, struct rhashtable *socket_hash_table)
 }
 
 /**
- * xaprc00x_socket_create - Creates a sock for a given family and protocol
- *
- * @socket_id The socket id to connect
- * @how The direction to shut down
- */
-void xaprc00x_socket_shutdown(int socket_id, enum sock_shutdown_cmd how,
-	struct rhashtable *socket_hash_table)
-{
-	struct scm_host_socket *socket;
-	/* Close the given socket if it can be found */
-	socket = xaprc00x_get_socket(&socket_id, socket_hash_table);
-	if (socket)
-		kernel_sock_shutdown(socket->sock, how);
-}
-
-/**
  * xaprc00x_addr_in4 - Assemble an in4 address
  *
  * @ip_addr The buffer containing the IPv4 address in network byte order.
