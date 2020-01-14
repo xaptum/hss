@@ -230,7 +230,7 @@
 	\subsubsection{SCM Command Packet Formats}
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
-	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID and the host will reply with an 8-bit ID to use to refer to this new socket on all future operations. \\
+	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID in the header but a 32-bit handle in the payload. The host will reply to all operations on this sock with this handle. \\
 	\begin{table}[H]
 		\begin{center}
 			\caption{Values for Family.}
@@ -275,12 +275,13 @@
 			\bitbox{16}{wOPCode (0x00)} &
 			\bitbox{16}{wMsgID} \\
 			\bitbox{32}{dSockID} \\
-			\bitbox{32}{dPayloadLen (0x05)} \\
+			\bitbox{32}{dPayloadLen (0x09)} \\
+			\bitbox{32}{dHandle} \\
 			\bitbox{16}{wAddrFamily} &
 			\bitbox{16}{wProtocol} \\
 			\bitbox{8}{bType} \\
 	\end{bytefield}\\
-	Ack will return with a 4-byte integer representing the new Sock ID. This value will be alligned to a 4-byte interval. 
+	Ack will return a code with no payload.
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for OPEN}
