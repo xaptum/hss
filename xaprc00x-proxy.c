@@ -108,7 +108,7 @@ static void xaprc00x_proxy_fill_ack_common(struct scm_packet_hdr *orig,
 {
 	ack->hdr.opcode = SCM_OP_ACK;
 	ack->hdr.msg_id = orig->msg_id;
-	ack->hdr.payload_len = 1;
+	ack->hdr.payload_len = 3;
 	ack->hdr.sock_id = orig->sock_id;
 	ack->ack.orig_opcode = orig->opcode;
 }
