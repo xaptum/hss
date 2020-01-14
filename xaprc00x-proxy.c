@@ -71,9 +71,9 @@ void *xaprc00x_proxy_init(void *usb_context)
 		goto free_wq;
 
 	context = kmalloc(sizeof(*context), GFP_KERNEL);
-	if (!context) {
+	if (!context)
 		goto free_data_wq;
-	}
+
 	context->proxy_id = dev;
 	context->proxy_wq = wq;
 	context->proxy_data_wq = data_wq;
@@ -82,9 +82,9 @@ void *xaprc00x_proxy_init(void *usb_context)
 
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
-	if (ret) {
+	if (ret)
 		goto free_context;
-	}
+
 	goto exit;
 
 free_context:
@@ -232,7 +232,7 @@ static enum scm_type xaprc00x_type_to_host(enum scm_type dev_type)
  *
  */
 void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 
 	int ret;
@@ -277,7 +277,7 @@ fill_ack:
  * Performs an CONNECT operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 	int ret;
 	struct scm_payload_connect_ip *payload = &packet->connect;
@@ -325,7 +325,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
  * Performs an CLOSE operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 	struct scm_packet_hdr *hdr = &packet->hdr;
 	int id = hdr->sock_id;
@@ -484,18 +484,22 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 	struct scm_packet *packet,
 	struct xaprc00x_proxy_context *context)
 {
-	/* This is a race condition... Cmd uses the same buffer with no guards.
-	The solution will be in later revisions when requests are pooled rather
-	than direct sent.*/
+	/**
+	 * This is a race condition... Cmd uses the same buffer with no guards.
+	 * The solution will be in later revisions when requests are pooled
+	 * rather than direct sent.
+	 */
 	struct scm_packet *ack =
 		xaprc00x_get_ack_buf(context->usb_context);
 
 	switch (packet->hdr.opcode) {
 	case SCM_OP_TRANSMIT:
-		xaprc00x_socket_write(packet->hdr.sock_id, &packet->scm_payload_none,
-			packet->hdr.payload_len, context->socket_table);
+		xaprc00x_socket_write(
+			packet->hdr.sock_id,
+			&packet->scm_payload_none,
+			packet->hdr.payload_len,
+			context->socket_table);
 
-		/* TODO use function to fill positive flow code when implemented */
 		xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
 		packet->ack.code = SCM_E_SUCCESS;
 		break;
