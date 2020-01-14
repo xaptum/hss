@@ -36,6 +36,7 @@ MODULE_DEVICE_TABLE(usb, xaprc00x_device_table);
 struct usb_xaprc00x {
 	struct usb_device	*udev;
 	struct usb_interface	*interface;
+	struct semaphore	int_out_sem;
 	__u8			bulk_in_endpointAddr;
 	__u8			bulk_out_endpointAddr;
 	__u8			cmd_in_endpointAddr;
@@ -167,6 +168,8 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 		goto error_free_out_buf;
 	}
 
+	sema_init(&dev->int_out_sem, 1);
+
 	/* Start listening for commands */
 	xaprc00x_read_cmd(dev);
 
@@ -226,17 +229,21 @@ void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev)
 
 static void xaprc00x_cmd_out_callback(struct urb *urb)
 {
+	struct usb_xaprc00x *dev = urb->context;
+
 	if (urb->status == 0)
 		pr_info("Cmd sent successfully");
 	else
 		pr_info("Cmd failed status=%d", urb->status);
+
+	up(&dev->int_out_sem);
 }
 
 int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 {
 	int ret = 0;
 	struct usb_xaprc00x *dev = context;
-
+	down(&dev->int_out_sem);
 	usb_fill_int_urb(dev->cmd_out_urb,
 		dev->udev,
 		usb_sndintpipe(dev->udev,
