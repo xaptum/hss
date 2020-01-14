@@ -92,10 +92,9 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 		dev->cmd_in_endpointAddr = ep_cmd_in->bEndpointAddress;
 		dev->cmd_out_endpointAddr = ep_cmd_out->bEndpointAddress;
 		dev->cmd_interval = ep_cmd_in->bInterval;
-	} else {
+	} else
 		dev_err(&dev->interface->dev,
 			"Could not find all endpoints\n");
-	}
 
 	return error;
 }
@@ -241,8 +240,9 @@ static void xaprc00x_cmd_out_callback(struct urb *urb)
 
 int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 {
-	int ret = 0;
+	int ret;
 	struct usb_xaprc00x *dev = context;
+
 	down(&dev->int_out_sem);
 	usb_fill_int_urb(dev->cmd_out_urb,
 		dev->udev,

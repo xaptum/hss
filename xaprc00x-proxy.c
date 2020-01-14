@@ -61,18 +61,18 @@ void *xaprc00x_proxy_init(void *usb_context)
 		goto exit;
 
 	context = kmalloc(sizeof(*context), GFP_KERNEL);
-	if (!context) {
+	if (!context)
 		goto free_wq;
-	}
+
 	context->proxy_id = dev;
 	context->proxy_wq = wq;
 	context->usb_context = usb_context;
 
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
-	if (ret) {
+	if (ret)
 		goto free_context;
-	}
+
 	goto exit;
 
 free_context:
@@ -218,7 +218,7 @@ static enum scm_type xaprc00x_type_to_host(enum scm_type dev_type)
  *
  */
 void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 
 	int ret;
@@ -263,7 +263,7 @@ fill_ack:
  * Performs an CONNECT operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 	int ret;
 	struct scm_payload_connect_ip *payload = &packet->connect;
@@ -310,7 +310,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
  * Performs an CLOSE operation based on an incoming SCM packet.
  */
 void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
-	struct scm_packet *ack, struct xaprc00x_proxy_context * context)
+	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 	struct scm_packet_hdr *hdr = &packet->hdr;
 	int id = hdr->sock_id;
