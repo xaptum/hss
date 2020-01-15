@@ -150,6 +150,28 @@
 			}
 		} 
 	\end{figure}
+	\subsection{SCM Error Codes}
+	\begin{table}[H]
+		\begin{center}
+			\caption{ACK Codes for OPEN}
+			\label{tab:globalErrTable}
+			\begin{tabular}{l|l|l} 
+				\rowcolor{lightgray}
+				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\hline
+				0 & ESUCCESS & Success\\
+				1 & EHOSTERR & An error has occured on the host\\
+				2 & EINVAL & Invalid parameters sent\\
+				3 & EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
+				4 & ECONNREFUSED & No one is listening on remote address\\
+				5 & ENETUNREACH & Network is unreachable to the host\\
+				6 & ETIMEDOUT & Timeout while host attempted to perform operation.\\
+				7 & EMISMATCH & Family for CONNECT to not match socks type on OPEN.\\
+				8 & ENOTCONN & An operation has occured on a non-connected socket which requires a connection.\\
+				9 & ENOSOCK & Socket not found on the host \\
+			\end{tabular}
+		\end{center}
+	\end{table} \mbox{}\\
 	\subsection{SCM Packet Types}
 	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
 	\subsubsection{Common Fields}
@@ -186,30 +208,29 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen} \\
-		\bitbox{32}{Data (Up to 60 bytes)...} \\
+		\bitbox{16}{wOPCode} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen} \\
+		\bitbox{32}{Data (Up to 52 bytes)...} \\
 	\end{bytefield}\\ 
 	\subsubsection{Data}
-	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 64 bytes.\\
+	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 52 bytes.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{Unused} \\
+		\bitbox{16}{wOPCode} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
 		\bitbox{32}{dPayloadLen} \\
 		\bitbox{32}{Payload Data...} \\
 	\end{bytefield}\\
-	\subsection{SCM Packets} \mbox{}
+	{SCM Packets} \mbox{}
 	All values in SCM packets are little endian unless otherwise noted. All IDs and integer values are unsigned unless otherwise noted.
 	\subsubsection{SCM Command Packet Formats}
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
-	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID and the host will reply with an 8-bit ID to use to refer to this new socket on all future operations. \\
+	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID in the header but a 32-bit handle in the payload. The host will reply to all operations on this sock with this handle. \\
 	\begin{table}[H]
 		\begin{center}
 			\caption{Values for Family.}
@@ -251,27 +272,28 @@
 	\end{table}
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{bOPCode (0x00)} &
-			\bitbox{8}{bMsgID} &
-			\bitbox{8}{Reserved} &
-			\bitbox{8}{bPayloadLen (0x05)} \\
+			\bitbox{16}{wOPCode (0x00)} &
+			\bitbox{16}{wMsgID} \\
+			\bitbox{32}{dSockID} \\
+			\bitbox{32}{dPayloadLen (0x09)} \\
+			\bitbox{32}{dHandle} \\
 			\bitbox{16}{wAddrFamily} &
 			\bitbox{16}{wProtocol} \\
 			\bitbox{8}{bType} \\
 	\end{bytefield}\\
-	ACK will return with a 1-byte unsigned integer return code, the value of this ACKs headers Sock ID is the new sock ID created by the host.
+	Ack will return a code with no payload.
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for OPEN}
 			\label{tab:openErrTable}
-			\begin{tabular}{l|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{ID} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				1 & EHOSTERR & An error has occured on the host\\
-				2 & EINVAL & Host does not understand protocol or protocol family\\
-				3 & EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
+				ESUCCESS & Success\\
+				EHOSTERR & An error has occured on the host\\
+				EINVAL & Host does not understand protocol or protocol family\\
+				EPROTONOSUPPORT & The protocol type is not supported on the domain. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
@@ -281,10 +303,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x06)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x00)} \\
+		\bitbox{16}{wOPCode (0x06)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -293,10 +315,10 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x02)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x00)} \\
+		\bitbox{16}{wOPCode (0x02)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x00)} \\
 	\end{bytefield}\\
 	Upon completion an ACK command will be sent witn no return data. 
 	\\
@@ -305,13 +327,14 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 	\bitheader{0,8,16,24,31} \\
-	\bitbox{8}{bOPCode (0x04)} &
-	\bitbox{8}{bMsgID} &
-	\bitbox{8}{bSockID} &
-	\bitbox{8}{bPayloadLen} \\
-	\bitbox{8}{bOrigOpCode} &
-	\bitbox{8}{Reserved} &
-	\bitbox{16}{Return data (Up to 56 bytes)}\\
+	\bitbox{16}{wOPCode (0x06)} &
+	\bitbox{16}{wMsgID} \\
+	\bitbox{32}{dSockID} \\
+	\bitbox{32}{dPayloadLen} \\
+	\bitbox{16}{wOrigOPCode} &
+	\bitbox{8}{Return Code} &
+	\bitbox{8}{Return Data...} \\
+	\bitbox{32}{...Return data (Up to 49 bytes)}\\
 	\end{bytefield}\\
 	\paragraph{CONNECT} \mbox{}\\
 	Connect tells the host to connect a created socket to a given address. The address information passed will vary by protocol, the host and device should know which structs the other side will send and process those (these are typically the same on both ends).\\
@@ -319,14 +342,14 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{bOPCode (0x01)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x08)} \\
+		\bitbox{16}{wOPCode (0x01)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x08)} \\
 		\bitbox{8}{bFamily (0x00)} &
 		\bitbox{8}{Reserved} &
-		\bitbox{16}{wPort (in Network Byte Order\footnotemark)}\\
-		\bitbox{32}{IP Address in Network Byte Order}
+		\bitbox{16}{wPort}\\
+		\bitbox{32}{IP Address (in Network Byte Order\footnotemark)}
 	\end{bytefield}\\
 	\footnotetext{POSIX.1-2017 expects the address and port to be in network byte order regardless of the host byte order.}
 	\\
@@ -334,13 +357,13 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,32} \\
-		\bitbox{8}{bOPCode (0x01)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{bPayloadLen (0x24)} \\
+		\bitbox{16}{wOPCode (0x01)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen (0x28)} \\
 		\bitbox{8}{bFamily (0x01)} &
 		\bitbox{8}{Reserved} &
-		\bitbox{16}{wPort (in network byte order)}\\
+		\bitbox{16}{wPort}\\
 		\bitbox{32}{dFlowInfo} \\
 		\bitbox{32}{dScopeID} \\
 		\bitbox{32}{IP6 Addr In Network Byte Order...} \\
@@ -348,22 +371,23 @@
 		\bitbox{32}{...IP6 Addr In Network Byte Order...} \\
 		\bitbox{32}{...IP6 Addr In Network Byte Order} \\
 	\end{bytefield}\\
-	Both connect types will send an ACK with a 1-byte unsigned integer as a response.
+    Upon completion an ACK command will be sent witn no return data. 
 	\\
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for CONNECT}
 			\label{tab:connErrTable}
-			\begin{tabular}{c|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				1 & EHOSTERR & An error has occured on the host\\
-				2 & ECONNREFUSED & No one is listening on remote address\\
-				3 & ENETUNREACH & Network is unreachable\\
-				4 & ETIMEDOUT & Timeout while attempting connection\\
-				5 & EMISMATCH & Family or protocol for CONNECT to not match socks type on OPEN.\\
+				ESUCCESS & Success\\
+				EHOSTERR & An error has occured on the host\\
+				ECONNREFUSED & No one is listening on remote address\\
+				ENETUNREACH & Network is unreachable\\
+				ETIMEDOUT & Timeout while attempting connection\\
+				EMISMATCH & Family or protocol for CONNECT to not match socks type on OPEN.\\
+				ENOSOCK & Sock ID not found on host. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
@@ -376,27 +400,27 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-			\bitbox{8}{bOPCode (0x03)} &
-			\bitbox{8}{bMsgID} &
-			\bitbox{8}{bSockID} &
-			\bitbox{8}{Reserved} \\
+			\bitbox{16}{wOPCode (0x03)} &
+			\bitbox{16}{wMsgID} \\
+			\bitbox{32}{dSockID} \\
 			\bitbox{32}{dPayloadLen} \\
 			\wordbox[tlr]{2}{Payload data...} \\
 			\bitbox[t]{32}{}
 	\end{bytefield}\\
 	\\
-	ACK will return as a 4-byte signed integer. On error the a negative number will be returned. Nonnegative return codes indicate a succesful trasnfer while positive return codes also indicate flow indicators (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR).\\
+	ACK will return with a 4-byte signed integer. On error the a negative number will be returned. Nonnegative return codes indicate a succesful trasnfer while positive return codes also indicate flow indicators (TODO: IMPLEMENT POSITIVE CODE BEHAVIOR).\\
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for TRANSMIT}
 			\label{tab:transmitErrTable}
-			\begin{tabular}{c|l|l} 
+			\begin{tabular}{l|l} 
 				\rowcolor{lightgray}
-				\textbf{Value} &	\textbf{Name} & \textbf{Description}\\
+				\textbf{Name} & \textbf{Description}\\
 				\hline
-				0 & ESUCCESS & Success\\
-				-1 & EHOSTERR & An error has occured on the host\\
-				-2 & ENOTCONN & The socket on the remote side is not open and connected\\
+				ESUCCESS & Success\\
+				-EHOSTERR & An error has occured on the host\\
+				-ENOTCONN & The socket on the remote side is not open and connected\\
+				-ENOSOCK & Sock ID not found on host. \\
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
@@ -405,11 +429,13 @@
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
-		\bitbox{8}{bOPCode (0x05)} &
-		\bitbox{8}{bMsgID} &
-		\bitbox{8}{bSockID} &
-		\bitbox{8}{Reserved} \\
-		\bitbox{32}{dPayloadLen}\\
+		\bitbox{16}{wOPCode (0x05)} &
+		\bitbox{16}{wMsgID} \\
+		\bitbox{32}{dSockID} \\
+		\bitbox{32}{dPayloadLen} \\
+		\bitbox{16}{wOrigOPCode} &
+		\bitbox{8}{Return Code} &
+		\bitbox{8}{Payload Data...} \\
 		\wordbox[tlr]{2}{Payload data...} \\
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
