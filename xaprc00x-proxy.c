@@ -125,12 +125,11 @@ static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
 	struct scm_packet *ack, int ret, int id)
 {
 	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
-	ack->hdr.payload_len += sizeof(ack->ack.open);
+	ack->hdr.payload_len += sizeof(ack->ack.empty);
 	switch (ret) {
 	case 0:
 		ack->ack.code = SCM_E_SUCCESS;
 		ack->hdr.sock_id = id;
-		ack->ack.open.sock_id = id;
 		break;
 	case -EINVAL:
 		ack->ack.code = SCM_E_INVAL;
