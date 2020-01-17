@@ -61,6 +61,8 @@ void xaprc00x_socket_mgr_destroy(struct rhashtable *socket_ht)
 	struct rhash_head *pos;
 	int i;
 
+	printk(KERN_INFO "xaprc00x_socket_mgr_destroy");
+
 	rcu_read_lock();
 	tbl = rht_dereference_rcu(socket_ht->tbl, socket_ht);
 	for (i = 0; i < tbl->size; i++) {
@@ -153,6 +155,8 @@ exit:
 void xaprc00x_socket_close(int socket_id, struct rhashtable *socket_ht)
 {
 	struct scm_host_socket *socket;
+
+	printk(KERN_INFO "xaprc00x_socket_close %d", socket_id);
 	/* Close and free the given socket if it can be found */
 	socket = xaprc00x_get_socket(&socket_id, socket_ht);
 	if (socket) {
@@ -177,6 +181,13 @@ static int xaprc00x_addr_in4(char *ip_addr, int ip_len, __be16 port,
 	struct sockaddr_in *addr)
 {
 	int ret = -EINVAL;
+
+	printk("xaprc00x_addr_in4: %u.%u.%u.%u:%d",
+		0x000000FF&ip_addr[0],
+		0x000000FF&ip_addr[1],
+		0x000000FF&ip_addr[2],
+		0x000000FF&ip_addr[3],
+		ntohs(port));
 
 	if (addr && ip_addr && ip_len == sizeof(struct in_addr)) {
 		addr->sin_family = AF_INET;
@@ -245,11 +256,15 @@ int xaprc00x_socket_connect_in4(int socket_id, char *ip_addr, int ip_len,
 	}
 
 	ret = xaprc00x_addr_in4(ip_addr, ip_len, port, &addr);
+	printk(KERN_INFO "xaprc00x_addr_in4: %d", ret);
 
-	if (!ret)
+	if (!ret) {
+		printk(KERN_INFO "xaprc00x_socket_connect_in4: Attempting connect");
 		ret = kernel_connect(socket->sock, (struct sockaddr *)&addr,
 			sizeof(struct sockaddr_in), flags);
+	}
 exit:
+	printk(KERN_INFO "xaprc00x_socket_connect_in4: Connecting ipv4 ret=%d", ret);
 	return ret;
 }
 
@@ -314,12 +329,15 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 		vec.iov_base = buf;
 
 		ret = kernel_sendmsg(socket->sock, &msg, &vec, len, len);
+		printk(KERN_INFO "Sent on socket %d ret %d", socket_id, ret);
+		print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET,
+			16, 1, buf, len, true);
 	}
 	return ret;
 }
 
 /**
- * xaprc00x_socket_read - Writes to a socket
+ * xaprc00x_socket_read - Reads from a socket
  *
  * @socket_id The socket id to connect
  * @buf The buffer to write
@@ -332,7 +350,7 @@ int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags,
 	struct rhashtable *socket_ht)
 {
 	struct scm_host_socket *socket;
-	struct msghdr msg;
+	struct msghdr msg = {};
 	struct kvec vec;
 	int ret = -EEXIST;
 
@@ -343,8 +361,8 @@ int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags,
 		msg.msg_flags = 0;
 		vec.iov_len = len;
 		vec.iov_base = buf;
-
-		ret = kernel_recvmsg(socket->sock, &msg, &vec, len, len, 0);
+		printk("Making kern_recvmsg call for sock %d", socket_id);
+		ret = kernel_recvmsg(socket->sock, &msg, &vec, 1, len, 0);
 	}
 	return ret;
 }
