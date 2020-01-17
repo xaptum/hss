@@ -13,6 +13,7 @@
 #include "xaprc00x-proxy.h"
 #include "xaprc00x-sockets.h"
 #include "xaprc00x-usb.h"
+#include "xaprc00x-packet.h"
 
 struct xaprc00x_proxy_context {
 	u16 proxy_id;
@@ -112,86 +113,6 @@ void xaprc00x_proxy_destroy(void *context)
 	xaprc00x_socket_mgr_destroy(proxy->socket_table);
 }
 
-/**
- * xaprc00x_proxy_fill_ack_common - Fill common ACK fields
- *
- * @orig The header of the packet being responded to
- * @ack The ACK packet to populate
- *
- * Fills common fields common to all ACK transactions that can be known by
- * reading the original message header.
- */
-static void xaprc00x_proxy_fill_ack_common(struct scm_packet_hdr *orig,
-	struct scm_packet *ack)
-{
-	ack->hdr.opcode = SCM_OP_ACK;
-	ack->hdr.msg_id = orig->msg_id;
-	ack->hdr.payload_len = 3;
-	ack->hdr.sock_id = orig->sock_id;
-	ack->ack.orig_opcode = orig->opcode;
-}
-
-/**
- * xaprc00x_proxy_fill_ack_open - Fill open specific ACK
- *
- * @packet The packet being reponded to
- * @ack The ACK packet to populate
- * @ret The return code from the operation
- * @id The ID created by the operation
- *
- * Fills an ACK packet after an OPEN procedure. ID is ignored unless ret==0
- */
-static void xaprc00x_proxy_fill_ack_open(struct scm_packet *packet,
-	struct scm_packet *ack, int ret, int id)
-{
-	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
-	ack->hdr.payload_len += sizeof(ack->ack.empty);
-	switch (ret) {
-	case 0:
-		ack->ack.code = SCM_E_SUCCESS;
-		ack->hdr.sock_id = id;
-		break;
-	case -EINVAL:
-		ack->ack.code = SCM_E_INVAL;
-		break;
-	default:
-		ack->ack.code = SCM_E_HOSTERR;
-		break;
-	}
-}
-
-/**
- * xaprc00x_proxy_fill_ack_connect - Fill connect specific ACK
- *
- * @packet The packet being reponded to
- * @ack The ACK packet to populate
- * @ret The return code from the operation
- *
- * Fills an ACK packet after an CONNECT procedure.
- */
-static void xaprc00x_proxy_fill_ack_connect(struct scm_packet *packet,
-	struct scm_packet *ack, int ret)
-{
-	xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
-	switch (ret) {
-	case 0:
-		ack->ack.code = SCM_E_SUCCESS;
-		break;
-	case -ECONNREFUSED:
-		ack->ack.code = SCM_E_CONNREFUSED;
-		break;
-	case -ENETUNREACH:
-		ack->ack.code = SCM_E_NETUNREACH;
-		break;
-	case -ETIMEDOUT:
-		ack->ack.code = SCM_E_TIMEDOUT;
-		break;
-	default:
-		ack->ack.code = SCM_E_HOSTERR;
-		break;
-	}
-}
-
 static int xaprc00x_family_to_host(enum scm_family dev_fam)
 {
 	int host_fam = -1;
@@ -269,7 +190,7 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	xaprc00x_proxy_fill_ack_open(packet, ack, ret, payload->handle);
+	xaprc00x_packet_fill_ack_open(packet, ack, ret, payload->handle);
 }
 
 /**
@@ -317,7 +238,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 		ret = -EINVAL;
 		break;
 	}
-	xaprc00x_proxy_fill_ack_connect(packet, ack, ret);
+	xaprc00x_packet_fill_ack_connect(packet, ack, ret);
 
 	/* Start reading from the socket if we are connected */
 	if(!ret) {
@@ -354,11 +275,7 @@ int xaprc00x_proxy_listen_socket(void *param)
 			ld->context->socket_table);
 
 		if (ret > 0) {
-			msg->hdr.msg_id = g_msg_id++;
-			msg->hdr.sock_id = ld->sock_id;
-			msg->hdr.payload_len = ret;
-			msg->hdr.opcode = SCM_OP_TRANSMIT;
-
+			xaprc00x_packet_fill_transmit(msg, ld->sock_id, NULL, ret);
 			bulk_ret = xaprc00x_bulk_out(ld->context->usb_context,
 				msg, ret + sizeof(struct scm_packet_hdr));
 		} else {
@@ -389,7 +306,7 @@ void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
 	xaprc00x_socket_close(id, context->socket_table);
 
 	/* Close ACKs do not contain status data. */
-	xaprc00x_proxy_fill_ack_common(hdr, ack);
+	xaprc00x_packet_fill_ack(hdr, ack);
 }
 
 /**
@@ -547,16 +464,13 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 	struct scm_packet *ack =
 		xaprc00x_get_ack_buf(context->usb_context);
 
-	printk(KERN_INFO "xaprc00x_proxy_run_in_transmit");
-
 	switch (packet->hdr.opcode) {
 	case SCM_OP_TRANSMIT:
-		printk(KERN_INFO "xaprc00x_proxy_run_in_transmit SCM_OP_TRANSMIT");
 		xaprc00x_socket_write(packet->hdr.sock_id, &packet->scm_payload_none,
 			packet->hdr.payload_len, context->socket_table);
 
 		/* TODO use function to fill positive flow code when implemented */
-		xaprc00x_proxy_fill_ack_common(&packet->hdr, ack);
+		xaprc00x_packet_fill_ack(&packet->hdr, ack);
 		packet->ack.code = SCM_E_SUCCESS;
 		break;
 	default:
