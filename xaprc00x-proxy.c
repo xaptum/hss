@@ -279,8 +279,14 @@ int xaprc00x_proxy_listen_socket(void *param)
 			bulk_ret = xaprc00x_bulk_out(ld->context->usb_context,
 				msg, ret + sizeof(struct scm_packet_hdr));
 		} else {
+			/* Send a close up to the host */
+			xaprc00x_packet_fill_close(msg, ld->sock_id);
+			xaprc00x_cmd_out(ld->context->usb_context,
+				msg, sizeof(*msg));
 			break;
 		}
+		/* Zero out the packet (not the payload, though) */
+		memset(msg, 0, sizeof(*msg));
 	}
 	kfree(msg);
 	kfree(param);
