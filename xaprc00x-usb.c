@@ -103,8 +103,7 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 		dev->cmd_interval = ep_cmd_in->bInterval;
 	} else {
 		dev_err(&dev->interface->dev,
-			"Could not find all endpoints cmd_in=%s cmd_out=%s \
-			bulk_in=%s bulk_out=%s\n",
+			"Could not find all endpoints cmd_in=%s cmd_out=%s bulk_in=%s bulk_out=%s\n",
 			(ep_cmd_in ? "found" : "(null)"),
 			(ep_cmd_out ? "found" : "(null)"),
 			(ep_bulk_in ? "found" : "(null)"),
@@ -252,7 +251,7 @@ static void xaprc00x_read_cmd_callback(struct urb *urb)
 static void xaprc00x_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
-	printk(KERN_INFO "xaprc00x_read_bulk_callback status=%d", urb->status);
+
 	if (urb->status == 0) {
 		xaprc00x_proxy_rcv_data((void *)dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
@@ -293,6 +292,7 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 	return 0;
 }
 
+/* Returns the ACK buf and lowers a semaphore to prevent concurrent access */
 void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev)
 {
 	down(&dev->int_out_sem);
@@ -303,9 +303,7 @@ static void xaprc00x_cmd_out_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
 
-	if (urb->status == 0)
-		pr_info("Cmd sent successfully");
-	else
+	if (urb->status != 0)
 		pr_info("Cmd failed status=%d", urb->status);
 
 	up(&dev->int_out_sem);
@@ -328,6 +326,7 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 	dev->cmd_out_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 
 	ret = usb_submit_urb(dev->cmd_out_urb, GFP_ATOMIC);
+
 	return ret;
 }
 
@@ -335,10 +334,7 @@ static void xaprc00x_bulk_out_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
 
-	/* Send 10 times before letting go */
-	if (urb->status == 0)
-		pr_info("Bulk sent successfully");
-	else
+	if (urb->status != 0)
 		pr_info("Bulk failed status=%d",
 			urb->status);
 	up(&dev->bulk_out_sem);
@@ -348,13 +344,10 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
 {
 	int ret = -1;
 	struct usb_xaprc00x *dev = context;
+
 	down(&dev->bulk_out_sem);
 
 	memcpy(dev->bulk_out_buffer, msg, msg_len);
-
-	printk("Recvd... Sending to device");
-	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET,
-		16, 1, msg, msg_len, true);
 
 	usb_fill_bulk_urb(dev->bulk_out_urb,
 		dev->udev,

@@ -239,7 +239,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	xaprc00x_packet_fill_ack_connect(packet, ack, ret);
 
 	/* Start reading from the socket if we are connected */
-	if(!ret) {
+	if (!ret) {
 		struct task_struct *new_thread;
 		/* Spawned thread is expected to free */
 		struct listen_data *params = kmalloc(sizeof(struct listen_data),
@@ -252,7 +252,7 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 			params,
 			"scm_sk_%d",
 			id);
-		if(new_thread)
+		if (new_thread)
 			wake_up_process(new_thread);
 	}
 }
@@ -266,24 +266,29 @@ int xaprc00x_proxy_listen_socket(void *param)
 	struct scm_packet *msg = kzalloc(len, GFP_KERNEL);
 	struct scm_packet *proxy_cmd_buf;
 	char *payload = (void *)msg;
-	payload += sizeof(struct scm_packet_hdr);
 	int bulk_ret;
+
+	payload += sizeof(struct scm_packet_hdr);
 
 	while (1) {
 		ret = xaprc00x_socket_read(ld->sock_id, payload, 128, 0,
 			ld->context->socket_table);
 
 		if (ret > 0) {
-			xaprc00x_packet_fill_transmit(msg, ld->sock_id, NULL, ret);
+			xaprc00x_packet_fill_transmit(msg,
+				ld->sock_id, NULL, ret);
 			bulk_ret = xaprc00x_bulk_out(ld->context->usb_context,
 				msg, ret + sizeof(struct scm_packet_hdr));
 		} else {
 			/* Send a close up to the host */
 			xaprc00x_packet_fill_close(msg, ld->sock_id);
-			proxy_cmd_buf = xaprc00x_get_ack_buf(ld->context->usb_context);
+			proxy_cmd_buf =
+				xaprc00x_get_ack_buf(ld->context->usb_context);
 			memcpy(proxy_cmd_buf, msg, sizeof(*msg));
-			xaprc00x_cmd_out(ld->context->usb_context,
-				proxy_cmd_buf,sizeof(*msg));
+			xaprc00x_cmd_out(
+				ld->context->usb_context,
+				proxy_cmd_buf,
+				sizeof(*msg));
 			break;
 		}
 		/* Zero out the packet (not the payload, though) */
@@ -309,7 +314,6 @@ void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
 	struct scm_packet_hdr *hdr = &packet->hdr;
 	int id = hdr->sock_id;
 
-	printk(KERN_INFO "Got CLOSE for socket %d", id);
 	xaprc00x_socket_close(id, context->socket_table);
 
 	/* Close ACKs do not contain status data. */
@@ -362,8 +366,6 @@ void xaprc00x_proxy_rcv_data(struct scm_packet *packet,
 	struct xaprc00x_proxy_context *proxy_ctx =
 		(struct xaprc00x_proxy_context *) context;
 
-	printk(KERN_INFO "xaprc00x_proxy_rcv_data");
-
 	newwork = kmalloc(sizeof(struct work_data_t) + packet_len, GFP_ATOMIC);
 
 	newwork->context = proxy_ctx;
@@ -405,12 +407,12 @@ static struct scm_packet *xaprc00x_proxy_run_host_cmd(
 	case SCM_OP_CLOSE:
 		xaprc00x_proxy_process_close(packet, dev, ack, context);
 		break;
-	/* No outgoing ACK for incoming ACK or unimplemented */
 	case SCM_OP_ACK:
 	case SCM_OP_ACKDATA:
 	case SCM_OP_SHUTDOWN:
 	case SCM_OP_TRANSMIT:
 	default:
+		pr_err("%s default %d\n", __func__, packet->hdr.opcode);
 		ack = NULL;
 		break;
 	}
@@ -454,8 +456,12 @@ static void xaprc00x_proxy_process_cmd(struct work_struct *work)
 	ack = xaprc00x_proxy_run_host_cmd(packet, proxy_context);
 
 	if (ack) {
-		proxy_cmd_buf = xaprc00x_get_ack_buf(proxy_context->usb_context);
-		memcpy(proxy_cmd_buf, ack, sizeof(*ack) + ack->hdr.payload_len);
+		proxy_cmd_buf =
+			xaprc00x_get_ack_buf(proxy_context->usb_context);
+		memcpy(
+			proxy_cmd_buf,
+			ack,
+			(sizeof(*ack) + ack->hdr.payload_len));
 		xaprc00x_cmd_out(proxy_context->usb_context, proxy_cmd_buf,
 			sizeof(*ack)+ack->hdr.payload_len);
 		kfree(ack);
@@ -481,10 +487,13 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 
 	switch (packet->hdr.opcode) {
 	case SCM_OP_TRANSMIT:
-		xaprc00x_socket_write(packet->hdr.sock_id, &packet->scm_payload_none,
-			packet->hdr.payload_len, context->socket_table);
+		xaprc00x_socket_write(
+			packet->hdr.sock_id,
+			&packet->scm_payload_none,
+			packet->hdr.payload_len,
+			context->socket_table);
 
-		/* TODO use function to fill positive flow code when implemented */
+		/* TODO Positive flow codes */
 		xaprc00x_packet_fill_ack(&packet->hdr, ack);
 		packet->ack.code = SCM_E_SUCCESS;
 		break;
@@ -512,8 +521,6 @@ static void xaprc00x_proxy_process_data(struct work_struct *work)
 	struct scm_packet *proxy_cmd_buf;
 	int expected_packet_len;
 
-	printk(KERN_INFO "xaprc00x_proxy_process_data");
-
 	work_data = (struct work_data_t *) work;
 	proxy_context = work_data->context;
 	packet = (struct scm_packet *)&work_data->data;
@@ -531,7 +538,8 @@ static void xaprc00x_proxy_process_data(struct work_struct *work)
 
 	ack = xaprc00x_proxy_run_in_transmit(packet, proxy_context);
 	if (ack) {
-		proxy_cmd_buf = xaprc00x_get_ack_buf(proxy_context->usb_context);
+		proxy_cmd_buf =
+			xaprc00x_get_ack_buf(proxy_context->usb_context);
 		memcpy(proxy_cmd_buf, ack, sizeof(*ack));
 		xaprc00x_cmd_out(proxy_context->usb_context, ack,
 			sizeof(*ack)+ack->hdr.payload_len);

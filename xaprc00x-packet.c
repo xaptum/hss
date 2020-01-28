@@ -21,7 +21,7 @@ struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
 	return packet;
 }
 
-void xaprc00x_fill_packet(struct scm_packet * packet, int opcode,
+void xaprc00x_fill_packet(struct scm_packet *packet, int opcode,
 	int sock_id)
 {
 	packet->hdr.msg_id = g_msg_id++;
@@ -32,17 +32,18 @@ void xaprc00x_fill_packet(struct scm_packet * packet, int opcode,
 void xaprc00x_fill_payload(struct scm_packet *packet, void *buf, size_t len)
 {
 	packet->hdr.payload_len = len;
-	if(buf)
+	if (buf)
 		memcpy(packet->scm_payload_none, buf, len);
 }
 
-void xaprc00x_packet_fill_close(struct scm_packet * packet, int sock_id)
+void xaprc00x_packet_fill_close(struct scm_packet *packet, int sock_id)
 {
 	xaprc00x_fill_packet(packet, SCM_OP_CLOSE, sock_id);
 }
 
 void xaprc00x_packet_fill_transmit(struct scm_packet *packet, int sock_id,
-	void *buf, size_t len) {
+	void *buf, size_t len)
+{
 	xaprc00x_fill_packet(packet, SCM_OP_TRANSMIT, sock_id);
 	xaprc00x_fill_payload(packet, buf, len);
 }
