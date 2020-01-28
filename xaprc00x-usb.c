@@ -295,6 +295,7 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 
 void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev)
 {
+	down(&dev->int_out_sem);
 	return dev->cmd_out_buffer;
 }
 
@@ -315,12 +316,11 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 	int ret;
 	struct usb_xaprc00x *dev = context;
 
-	down(&dev->int_out_sem);
 	usb_fill_int_urb(dev->cmd_out_urb,
 		dev->udev,
 		usb_sndintpipe(dev->udev,
 			dev->cmd_out_endpointAddr),
-		dev->cmd_out_buffer,
+		msg,
 		msg_len,
 		xaprc00x_cmd_out_callback,
 		dev,

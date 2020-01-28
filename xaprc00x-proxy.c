@@ -35,8 +35,6 @@ struct listen_data {
 	struct xaprc00x_proxy_context *context;
 };
 
-static int g_msg_id;
-
 /* Forward declarations */
 static void xaprc00x_proxy_process_cmd(struct work_struct *work);
 static void xaprc00x_proxy_process_data(struct work_struct *work);
@@ -266,6 +264,7 @@ int xaprc00x_proxy_listen_socket(void *param)
 	int ret = 0;
 	int len = 128 + sizeof(struct scm_packet_hdr);
 	struct scm_packet *msg = kzalloc(len, GFP_KERNEL);
+	struct scm_packet *proxy_cmd_buf;
 	char *payload = (void *)msg;
 	payload += sizeof(struct scm_packet_hdr);
 	int bulk_ret;
@@ -281,8 +280,10 @@ int xaprc00x_proxy_listen_socket(void *param)
 		} else {
 			/* Send a close up to the host */
 			xaprc00x_packet_fill_close(msg, ld->sock_id);
+			proxy_cmd_buf = xaprc00x_get_ack_buf(ld->context->usb_context);
+			memcpy(proxy_cmd_buf, msg, sizeof(*msg));
 			xaprc00x_cmd_out(ld->context->usb_context,
-				msg, sizeof(*msg));
+				proxy_cmd_buf,sizeof(*msg));
 			break;
 		}
 		/* Zero out the packet (not the payload, though) */
@@ -392,8 +393,7 @@ static struct scm_packet *xaprc00x_proxy_run_host_cmd(
 	struct xaprc00x_proxy_context *context)
 {
 	int dev = context->proxy_id;
-	struct scm_packet *ack =
-		xaprc00x_get_ack_buf(context->usb_context);
+	struct scm_packet *ack = kmalloc(sizeof(*ack) + 64, GFP_KERNEL);
 
 	switch (packet->hdr.opcode) {
 	case SCM_OP_OPEN:
@@ -433,6 +433,7 @@ static void xaprc00x_proxy_process_cmd(struct work_struct *work)
 	struct scm_packet *packet;
 	int packet_len;
 	struct scm_packet *ack;
+	struct scm_packet *proxy_cmd_buf;
 	int expected_packet_len;
 
 	work_data = (struct work_data_t *) work;
@@ -453,22 +454,30 @@ static void xaprc00x_proxy_process_cmd(struct work_struct *work)
 	ack = xaprc00x_proxy_run_host_cmd(packet, proxy_context);
 
 	if (ack) {
-		xaprc00x_cmd_out(proxy_context->usb_context, ack,
+		proxy_cmd_buf = xaprc00x_get_ack_buf(proxy_context->usb_context);
+		memcpy(proxy_cmd_buf, ack, sizeof(*ack) + ack->hdr.payload_len);
+		xaprc00x_cmd_out(proxy_context->usb_context, proxy_cmd_buf,
 			sizeof(*ack)+ack->hdr.payload_len);
+		kfree(ack);
 	}
 exit:
 	kfree(work);
 }
 
+/**
+ * xaprc00x_proxy_run_in_transmit - Handles inbound (from device)
+ * TRANSMIT commands
+ *
+ * @packet The packet to process
+ * @context the xaprc00x proxy context
+ *
+ * Notes: Returns a newly allocated ACK or NULL. Caller must free
+ */
 static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 	struct scm_packet *packet,
 	struct xaprc00x_proxy_context *context)
 {
-	/* This is a race condition... Cmd uses the same buffer with no guards.
-	The solution will be in later revisions when requests are pooled rather
-	than direct sent.*/
-	struct scm_packet *ack =
-		xaprc00x_get_ack_buf(context->usb_context);
+	struct scm_packet *ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
 
 	switch (packet->hdr.opcode) {
 	case SCM_OP_TRANSMIT:
@@ -481,18 +490,26 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
 		break;
 	default:
 		ack = NULL;
+		kfree(ack);
 		break;
 	}
 	return ack;
 }
 
+/**
+ * xaprc00x_proxy_process_data - Handles inbound (from device)
+ * data type packets
+ *
+ * @work The work struct, expected type `struct xaprc00x_proxy_context`
+ */
 static void xaprc00x_proxy_process_data(struct work_struct *work)
 {
 	struct work_data_t *work_data;
 	struct xaprc00x_proxy_context *proxy_context;
 	struct scm_packet *packet;
 	int packet_len;
-	struct scm_packet *ack;
+	struct scm_packet *ack = NULL;
+	struct scm_packet *proxy_cmd_buf;
 	int expected_packet_len;
 
 	printk(KERN_INFO "xaprc00x_proxy_process_data");
@@ -513,12 +530,13 @@ static void xaprc00x_proxy_process_data(struct work_struct *work)
 	}
 
 	ack = xaprc00x_proxy_run_in_transmit(packet, proxy_context);
-
 	if (ack) {
-		printk(KERN_INFO "xaprc00x_proxy_process_data ack");
+		proxy_cmd_buf = xaprc00x_get_ack_buf(proxy_context->usb_context);
+		memcpy(proxy_cmd_buf, ack, sizeof(*ack));
 		xaprc00x_cmd_out(proxy_context->usb_context, ack,
 			sizeof(*ack)+ack->hdr.payload_len);
 	}
 exit:
 	kfree(work);
+	kfree(ack);
 }
