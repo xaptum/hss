@@ -10,7 +10,7 @@
 #include "xaprc00x-packet.h"
 
 
-static int g_msg_id;
+static atomic_t g_msg_id;
 
 struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
 	int max_payload_len)
@@ -24,7 +24,7 @@ struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
 void xaprc00x_fill_packet(struct scm_packet *packet, int opcode,
 	int sock_id)
 {
-	packet->hdr.msg_id = g_msg_id++;
+	packet->hdr.msg_id = atomic_inc_return(&g_msg_id);
 	packet->hdr.opcode = opcode;
 	packet->hdr.sock_id = sock_id;
 }
