@@ -342,6 +342,10 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
 	int ret = -1;
 	struct usb_xaprc00x *dev = context;
 
+	/* Protect over-copying */
+	if (msg_len > XAPRC00X_BULK_OUT_BUF_SIZE)
+		msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
+
 	down(&dev->bulk_out_sem);
 
 	memcpy(dev->bulk_out_buffer, msg, msg_len);
@@ -361,7 +365,8 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
 	if (ret < 0)
 		up(&dev->bulk_out_sem);
 
-	return ret;
+	/* Either return the number of bytes sent or negative error code */
+	return (ret == 0) ? msg_len : ret;
 }
 
 static void xaprc00x_driver_disconnect(struct usb_interface *interface)

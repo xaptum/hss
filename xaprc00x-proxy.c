@@ -242,8 +242,8 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	if (!ret) {
 		struct task_struct *new_thread;
 		/* Spawned thread is expected to free */
-		struct listen_data *params = kmalloc(sizeof(struct listen_data),
-			GFP_KERNEL);
+		struct listen_data *params =
+			kmalloc(sizeof(struct listen_data), GFP_KERNEL);
 		params->sock_id = id;
 		params->context = context;
 
@@ -257,46 +257,101 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	}
 }
 
+/**
+ * Helper funciton to form a CLOSE packet for a given socket and send it
+ *
+ * @sock_id The ID of the sock to close
+ * @msg Memory for the outgoing packet
+ * @usb_context A pointer to the USB context
+ *
+ * Note: Close packets have no payload so the send size will always be
+ * sizeof(struct scm_packet_hdr). Msg is expected to be of sufficient length.
+ */
+static void xaprc00x_send_close(
+	int sock_id,
+	struct scm_packet *msg,
+	void *usb_context)
+{
+	struct scm_packet *proxy_cmd_buf;
+	int scm_msg_len = sizeof(struct scm_packet);
+
+	/* Send a close to the device */
+	xaprc00x_packet_fill_close(msg, sock_id);
+	proxy_cmd_buf = xaprc00x_get_ack_buf(usb_context);
+	memcpy(proxy_cmd_buf, msg, scm_msg_len);
+	xaprc00x_cmd_out(usb_context, proxy_cmd_buf, scm_msg_len);
+}
+
+/**
+ * Fills and sends a TRANSMIT packet for a given sock. Msg must be a unfilled
+ * SCM packet header with the payload appended afterwards.
+ *
+ * @msg The SCM packet to send, already have payload appended
+ * @payload_len The length of the payload
+ * @usb_context A pointer to the USB context
+ *
+ * Note: To avoid excessive memory copying callers should allocate a send
+ * buffer large enough for both the header and payload data then write the
+ * actual payload data starting at offset sizeof(struct scm_packet_hdr)
+ */
+static void xaprc00x_send_transmit(
+	struct scm_packet *msg,
+	int payload_len,
+	int sock_id,
+	void *usb_context)
+{
+	int bulk_ret;
+	int packet_len = payload_len + sizeof(struct scm_packet_hdr);
+
+	xaprc00x_packet_fill_transmit(msg, sock_id, NULL, payload_len);
+	bulk_ret = xaprc00x_bulk_out(usb_context, msg, packet_len);
+
+	/* Bulk_out should only return send length requested */
+	if (bulk_ret != packet_len)
+		pr_err("%s bulk_out send %d, returned %d\n",
+			__func__, packet_len, bulk_ret);
+}
+
 /* Continually listen to a socket and pass its data over USB */
 int xaprc00x_proxy_listen_socket(void *param)
 {
 	struct listen_data *ld = param;
-	int ret = 0;
-	int len = 128 + sizeof(struct scm_packet_hdr);
-	struct scm_packet *msg = kzalloc(len, GFP_KERNEL);
-	struct scm_packet *proxy_cmd_buf;
-	char *payload = (void *)msg;
-	int bulk_ret;
-
-	payload += sizeof(struct scm_packet_hdr);
+	int max_msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
+	int max_read_len = max_msg_len - sizeof(struct scm_packet_hdr);
+	struct scm_packet *msg = kzalloc(max_msg_len, GFP_KERNEL);
+	int sock_read_len;
+	void *usb_context = ld->context->usb_context;
 
 	while (1) {
-		ret = xaprc00x_socket_read(ld->sock_id, payload, 128, 0,
+		/* Read data from our socket */
+		sock_read_len = xaprc00x_socket_read(
+			ld->sock_id,
+			msg->scm_payload_none,
+			max_read_len,
+			0,
 			ld->context->socket_table);
 
-		if (ret > 0) {
-			xaprc00x_packet_fill_transmit(msg,
-				ld->sock_id, NULL, ret);
-			bulk_ret = xaprc00x_bulk_out(ld->context->usb_context,
-				msg, ret + sizeof(struct scm_packet_hdr));
-		} else {
-			/* Send a close up to the host */
-			xaprc00x_packet_fill_close(msg, ld->sock_id);
-			proxy_cmd_buf =
-				xaprc00x_get_ack_buf(ld->context->usb_context);
-			memcpy(proxy_cmd_buf, msg, sizeof(*msg));
-			xaprc00x_cmd_out(
-				ld->context->usb_context,
-				proxy_cmd_buf,
-				sizeof(*msg));
+		/* Close and exit on a zero-read */
+		if (sock_read_len <= 0) {
+			xaprc00x_send_close(
+				ld->sock_id,
+				msg,
+				usb_context);
 			break;
 		}
+
+		xaprc00x_send_transmit(
+			msg,
+			sock_read_len,
+			ld->sock_id,
+			usb_context);
+
 		/* Zero out the packet (not the payload, though) */
 		memset(msg, 0, sizeof(*msg));
 	}
 	kfree(msg);
 	kfree(param);
-	return 0;
+	return sock_read_len;
 }
 
 /**
