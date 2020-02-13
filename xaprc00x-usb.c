@@ -21,9 +21,6 @@
 #include "xaprc00x-proxy.h"
 #include "scm.h"
 
-#define XAPRC00X_BULK_IN_BUF_SIZE 1024
-#define XAPRC00X_BULK_OUT_BUF_SIZE 128
-
 /* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xaprc00x_device_table[] = {
 	{ USB_VENDOR_AND_INTERFACE_INFO(
@@ -190,7 +187,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	dev->bulk_out_buffer = usb_alloc_coherent(dev->udev,
-		sizeof(struct scm_packet) + XAPRC00X_BULK_OUT_BUF_SIZE,
+		XAPRC00X_BULK_OUT_BUF_SIZE,
 		GFP_KERNEL, &dev->bulk_out_urb->transfer_dma);
 	if (!dev->bulk_out_buffer) {
 		retval = -ENOMEM;
