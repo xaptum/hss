@@ -16,7 +16,7 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len);
 void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev);
 
 
-#define XAPRC00X_BULK_IN_BUF_SIZE 1024
-#define XAPRC00X_BULK_OUT_BUF_SIZE 1024
+#define XAPRC00X_BULK_IN_BUF_SIZE 468
+#define XAPRC00X_BULK_OUT_BUF_SIZE 468
 
 #endif

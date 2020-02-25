@@ -5,6 +5,7 @@
  *	are called by the USB system when a message is completed.
  */
 
+#include <linux/circ_buf.h>
 #include <linux/socket.h>
 #include <linux/net.h>
 #include <linux/workqueue.h>
@@ -15,12 +16,16 @@
 #include "xaprc00x-usb.h"
 #include "xaprc00x-packet.h"
 
+/* NOTE: Size must be a power of 2 for circ_buf optimizations */
+#define READ_CACHE_SIZE 1<<13 /* 2^13 = 8kb */
+
 struct xaprc00x_proxy_context {
 	u16 proxy_id;
 	struct workqueue_struct *proxy_wq;
 	struct workqueue_struct *proxy_data_wq;
 	struct rhashtable *socket_table;
 	void *usb_context;
+	struct circ_buf read_cache;
 };
 
 struct work_data_t {
@@ -85,13 +90,19 @@ void *xaprc00x_proxy_init(void *usb_context)
 	context->proxy_data_wq = data_wq;
 	context->usb_context = usb_context;
 
+	context->read_cache->buf = kmalloc(READ_CACHE_SIZE, GFP_KERNEL);
+	if (!context->read_cache->buf)
+		goto free_context;
+
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
 	if (ret)
-		goto free_context;
+		goto free_read_cache;
 
 	goto exit;
 
+free_read_cache:
+	kfree(context->read_cache->buf);
 free_context:
 	kfree(context);
 	context = NULL;
@@ -107,6 +118,7 @@ void xaprc00x_proxy_destroy(void *context)
 {
 	struct xaprc00x_proxy_context *proxy = context;
 
+	kfree(proxy->read_cache->buf);
 	destroy_workqueue(proxy->proxy_wq);
 	xaprc00x_socket_mgr_destroy(proxy->socket_table);
 }
@@ -414,14 +426,19 @@ void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,
  * Packet can be modified or freed after this function returns.
  * This function may be called in an atomic context.
  */
-void xaprc00x_proxy_rcv_data(struct scm_packet *packet,
-	int packet_len, void *context)
+void xaprc00x_proxy_rcv_data(void *data, int len, void *context)
 {
 	struct work_data_t *newwork;
 	struct xaprc00x_proxy_context *proxy_ctx =
 		(struct xaprc00x_proxy_context *) context;
 
-	newwork = kmalloc(sizeof(struct work_data_t) + packet_len, GFP_ATOMIC);
+	//Internal lock
+	struct circ_buf *buffer = context->read_cache;
+	unsigned long head = buffer->head;
+	unsigned long tail = READ_ONCE(buffer->tail);
+
+	if (CIRC_SPACE(head, tail, buffer->size) >= len) {
+
 
 	newwork->context = proxy_ctx;
 	newwork->packet_len = packet_len;
