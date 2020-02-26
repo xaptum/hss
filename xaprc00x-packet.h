@@ -8,6 +8,8 @@
 
 #include "scm.h"
 
+int xaprc00x_get_packet_len(struct scm_packet *packet);
+
 struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
 	int max_payload_len);
 void xaprc00x_packet_fill_close(struct scm_packet *packet, int sock_id);
@@ -16,6 +18,7 @@ void xaprc00x_packet_fill_transmit(struct scm_packet *packet, int sock_id,
 	void *buf, size_t len);
 void xaprc00x_fill_packet(struct scm_packet *packet, int opcode,
 	int sock_id);
+void xaprc00x_packet_fill_noop(struct scm_packet *packet, int len);
 
 void xaprc00x_packet_fill_ack(struct scm_packet_hdr *orig,
 	struct scm_packet *ack);

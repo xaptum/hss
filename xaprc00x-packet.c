@@ -12,6 +12,25 @@
 
 static atomic_t g_msg_id;
 
+
+/**
+ * xaprc00x_get_packet_len - Returns the full length of the scm packet,
+ * or 0 if incomplete
+ *
+ * @packet The packet being examined
+ * @max_len The readable length of the buffer
+ * @begin A pointer to the beginning of the circular buffer
+ * @wrap_len How many bytes of the header were wrapped around
+ *
+ * This functions allows a caller to hand it a potentially incomplete buffer
+ * and returns the read length for the entire packet, or 0 if not enough memory
+ * was given.
+ */
+int xaprc00x_get_packet_len(struct scm_packet *packet)
+{
+	return sizeof(struct scm_packet_hdr) + packet->hdr.payload_len;
+}
+
 struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
 	int max_payload_len)
 {
@@ -46,6 +65,12 @@ void xaprc00x_packet_fill_transmit(struct scm_packet *packet, int sock_id,
 {
 	xaprc00x_fill_packet(packet, SCM_OP_TRANSMIT, sock_id);
 	xaprc00x_fill_payload(packet, buf, len);
+}
+
+void xaprc00x_packet_fill_noop(struct scm_packet *packet, int len)
+{
+	xaprc00x_fill_packet(packet, SCM_OP_MAX, 0);
+	xaprc00x_fill_payload(packet, NULL, len);
 }
 
 /**

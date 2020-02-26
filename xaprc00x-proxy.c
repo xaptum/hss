@@ -6,6 +6,7 @@
  */
 
 #include <linux/circ_buf.h>
+#include <linux/kthread.h>
 #include <linux/socket.h>
 #include <linux/net.h>
 #include <linux/workqueue.h>
@@ -15,9 +16,10 @@
 #include "xaprc00x-sockets.h"
 #include "xaprc00x-usb.h"
 #include "xaprc00x-packet.h"
+#include "xaprc00x-ring.h"
 
-/* NOTE: Size must be a power of 2 for circ_buf optimizations */
-#define READ_CACHE_SIZE 1<<13 /* 2^13 = 8kb */
+/* NOTE: Size must be a power of 2 for circ_buf */
+static const int READ_CACHE_SIZE = 1<<13; /* 8kb */
 
 struct xaprc00x_proxy_context {
 	u16 proxy_id;
@@ -25,7 +27,7 @@ struct xaprc00x_proxy_context {
 	struct workqueue_struct *proxy_data_wq;
 	struct rhashtable *socket_table;
 	void *usb_context;
-	struct circ_buf read_cache;
+	struct circ_buf read_cache ____cacheline_aligned_in_smp;
 };
 
 struct work_data_t {
@@ -90,9 +92,11 @@ void *xaprc00x_proxy_init(void *usb_context)
 	context->proxy_data_wq = data_wq;
 	context->usb_context = usb_context;
 
-	context->read_cache->buf = kmalloc(READ_CACHE_SIZE, GFP_KERNEL);
-	if (!context->read_cache->buf)
+	context->read_cache.buf = kmalloc(READ_CACHE_SIZE, GFP_KERNEL);
+	if (!context->read_cache.buf)
 		goto free_context;
+	context->read_cache.head = 0;
+	context->read_cache.tail = 0;
 
 	/* Initialize the proxy */
 	ret = xaprc00x_socket_mgr_init(&context->socket_table);
@@ -102,7 +106,7 @@ void *xaprc00x_proxy_init(void *usb_context)
 	goto exit;
 
 free_read_cache:
-	kfree(context->read_cache->buf);
+	kfree(context->read_cache.buf);
 free_context:
 	kfree(context);
 	context = NULL;
@@ -118,7 +122,7 @@ void xaprc00x_proxy_destroy(void *context)
 {
 	struct xaprc00x_proxy_context *proxy = context;
 
-	kfree(proxy->read_cache->buf);
+	kfree(proxy->read_cache.buf);
 	destroy_workqueue(proxy->proxy_wq);
 	xaprc00x_socket_mgr_destroy(proxy->socket_table);
 }
@@ -425,27 +429,25 @@ void xaprc00x_proxy_rcv_cmd(struct scm_packet *packet,
  * Notes:
  * Packet can be modified or freed after this function returns.
  * This function may be called in an atomic context.
+ * Other threads may modify ring->tail during this operation.
  */
-void xaprc00x_proxy_rcv_data(void *data, int len, void *context)
+int xaprc00x_proxy_rcv_data(void *data, int len, void *context)
 {
 	struct work_data_t *newwork;
 	struct xaprc00x_proxy_context *proxy_ctx =
 		(struct xaprc00x_proxy_context *) context;
+	struct circ_buf *ring = &proxy_ctx->read_cache;
+	int did_copy;
 
-	//Internal lock
-	struct circ_buf *buffer = context->read_cache;
-	unsigned long head = buffer->head;
-	unsigned long tail = READ_ONCE(buffer->tail);
-
-	if (CIRC_SPACE(head, tail, buffer->size) >= len) {
-
-
+	newwork = kmalloc(sizeof(struct work_data_t), GFP_ATOMIC);
 	newwork->context = proxy_ctx;
-	newwork->packet_len = packet_len;
 
-	memcpy(newwork->data, packet, packet_len);
+	did_copy = xaprc00x_ring_write(ring, READ_CACHE_SIZE, data, len);
+
 	INIT_WORK(&newwork->work, xaprc00x_proxy_process_data);
 	queue_work(proxy_ctx->proxy_data_wq, &newwork->work);
+
+	return did_copy;
 }
 
 /**
@@ -542,36 +544,70 @@ exit:
 	kfree(work);
 }
 
+static int xaprc00x_proxy_transmit_send(
+	struct circ_buf *ring,
+	struct scm_packet_hdr *packet_hdr,
+	struct xaprc00x_proxy_context *context)
+{
+	char *payload;
+	struct xaprc00x_ring_section section;
+	int ret = 1;
+
+	section = xaprc00x_consumer_section(ring, READ_CACHE_SIZE,
+		packet_hdr->payload_len);
+	payload = ring->buf + section.start;
+
+	if (section.start > -1) {
+		/* Write the sequential portion of the payload */
+		xaprc00x_socket_write(
+			packet_hdr->sock_id,
+			payload,
+			section.len,
+			context->socket_table);
+
+		/* If any of the payload wraps around the buffer */
+		xaprc00x_socket_write(
+			packet_hdr->sock_id,
+			ring->buf,
+			section.wrap,
+			context->socket_table);
+
+		xaprc00x_ring_consume(ring, READ_CACHE_SIZE, section);
+
+		ret = 0;
+	}
+	return ret;
+}
+
 /**
- * xaprc00x_proxy_run_in_transmit - Handles inbound (from device)
- * TRANSMIT commands
+ * xaprc00x_proxy_run_in_data - Handles inbound (from device)
+ * data type commands
  *
  * @packet The packet to process
  * @context the xaprc00x proxy context
  *
- * Notes: Returns a newly allocated ACK or NULL. Caller must free
+ * Notes:
+ * Returns a newly allocated ACK or NULL. Caller must free
  */
-static struct scm_packet *xaprc00x_proxy_run_in_transmit(
-	struct scm_packet *packet,
+static struct scm_packet *xaprc00x_proxy_run_in_data(
+	struct scm_packet_hdr *packet_hdr,
+	struct circ_buf *ring,
 	struct xaprc00x_proxy_context *context)
 {
-	struct scm_packet *ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
+	struct scm_packet *ack;
 
-	switch (packet->hdr.opcode) {
+	switch (packet_hdr->opcode) {
 	case SCM_OP_TRANSMIT:
-		xaprc00x_socket_write(
-			packet->hdr.sock_id,
-			&packet->scm_payload_none,
-			packet->hdr.payload_len,
-			context->socket_table);
+		ack = kmalloc(sizeof(struct scm_packet), GFP_KERNEL);
+		xaprc00x_proxy_transmit_send(ring, packet_hdr, context);
 
 		/* TODO Positive flow codes */
-		xaprc00x_packet_fill_ack(&packet->hdr, ack);
-		packet->ack.code = SCM_E_SUCCESS;
+		xaprc00x_packet_fill_ack(packet_hdr, ack);
+		ack->ack.code = SCM_E_SUCCESS;
 		break;
 	default:
 		ack = NULL;
-		kfree(ack);
+		pr_err("%s default op %d", __func__, packet_hdr->opcode);
 		break;
 	}
 	return ack;
@@ -582,41 +618,65 @@ static struct scm_packet *xaprc00x_proxy_run_in_transmit(
  * data type packets
  *
  * @work The work struct, expected type `struct xaprc00x_proxy_context`
+ *
+ * Notes: Other threads may modify ring->head during this operation.
  */
 static void xaprc00x_proxy_process_data(struct work_struct *work)
 {
-	struct work_data_t *work_data;
 	struct xaprc00x_proxy_context *proxy_context;
-	struct scm_packet *packet;
+	struct circ_buf *ring;
 	int packet_len;
+	int circ_cnt;
 	struct scm_packet *ack = NULL;
-	struct scm_packet *proxy_cmd_buf;
-	int expected_packet_len;
+	struct scm_packet_hdr hdr;
+	struct xaprc00x_ring_section section;
+	int hdr_len = sizeof(struct scm_packet_hdr);
 
-	work_data = (struct work_data_t *) work;
-	proxy_context = work_data->context;
-	packet = (struct scm_packet *)&work_data->data;
-	packet_len = work_data->packet_len;
+	/* Unpack the work data */
+	proxy_context = ((struct work_data_t *) work)->context;
+	ring = &proxy_context->read_cache;
 
-	/* Sanity check the length against the packet definition */
-	expected_packet_len =
-		packet->hdr.payload_len +
-		sizeof(struct scm_packet_hdr);
-	if (expected_packet_len > packet_len) {
-		pr_err("Expected packet size %db, got %db",
-			expected_packet_len, packet_len);
+	/* Get the section we can read from the buffer */
+	section = xaprc00x_consumer_section(
+		ring,
+		READ_CACHE_SIZE,
+		hdr_len);
+
+	/* If theres not a headers worth of data in the buffer */
+	if (section.start == -1)
 		goto exit;
-	}
 
-	ack = xaprc00x_proxy_run_in_transmit(packet, proxy_context);
+	/* Copy the header to a contiguous buffer */
+	memcpy(&hdr, ring->buf + section.start, section.len);
+	memcpy(((char *) &hdr) + section.len, ring->buf, section.wrap);
+
+	/* If there entire payload hasn't arrived yet */
+	circ_cnt = CIRC_CNT(
+		READ_ONCE(ring->head),
+		READ_ONCE(ring->tail),
+		READ_CACHE_SIZE);
+	packet_len = xaprc00x_get_packet_len((struct scm_packet *)&hdr);
+
+	if (packet_len > circ_cnt)
+		goto exit;
+
+	/* If the entire packet can be read consume the header */
+	xaprc00x_ring_consume(ring, READ_CACHE_SIZE, section);
+
+	/* Run the transmit packet */
+	ack = xaprc00x_proxy_run_in_data(&hdr, ring, proxy_context);
+
+	/* Send an ACK if applicable */
 	if (ack) {
+		struct scm_packet *proxy_cmd_buf;
+
 		proxy_cmd_buf =
 			xaprc00x_get_ack_buf(proxy_context->usb_context);
 		memcpy(proxy_cmd_buf, ack, sizeof(*ack));
 		xaprc00x_cmd_out(proxy_context->usb_context, ack,
 			sizeof(*ack)+ack->hdr.payload_len);
+		kfree(ack);
 	}
 exit:
 	kfree(work);
-	kfree(ack);
 }

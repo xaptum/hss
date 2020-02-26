@@ -306,6 +306,11 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 	struct msghdr msg;
 	struct kvec vec;
 
+	if (!len) {
+		ret = 0;
+		goto exit;
+	}
+
 	socket = xaprc00x_get_socket(&socket_id, socket_ht);
 	if (socket) {
 		msg.msg_control = NULL;
@@ -316,6 +321,8 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 
 		ret = kernel_sendmsg(socket->sock, &msg, &vec, len, len);
 	}
+
+exit:
 	return ret;
 }
 
