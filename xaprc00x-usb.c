@@ -276,8 +276,6 @@ static void xaprc00x_read_bulk_callback(struct urb *urb)
 
 static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 {
-	int ret = 0;
-
 	/* Start listening for commands */
 	usb_fill_int_urb(dev->cmd_in_urb,
 		dev->udev,
@@ -289,8 +287,7 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 		dev,
 		dev->cmd_interval);
 	dev->cmd_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
-
-	ret = usb_submit_urb(dev->cmd_in_urb, GFP_ATOMIC);
+	usb_submit_urb(dev->cmd_in_urb, GFP_ATOMIC);
 
 	/* Start listening for data */
 	usb_fill_bulk_urb(dev->bulk_in_urb,
@@ -301,8 +298,8 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 		sizeof(struct scm_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
 		xaprc00x_read_bulk_callback,
 		dev);
-
-	ret = usb_submit_urb(dev->bulk_in_urb, GFP_ATOMIC);
+	dev->bulk_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	usb_submit_urb(dev->bulk_in_urb, GFP_ATOMIC);
 
 	return 0;
 }
