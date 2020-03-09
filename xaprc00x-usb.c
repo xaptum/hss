@@ -249,10 +249,28 @@ static void xaprc00x_read_bulk_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
 
-	if (urb->status == 0) {
+	switch (urb->status) {
+	/* Success */
+	case 0:
 		xaprc00x_proxy_rcv_data((void *)dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
+		break;
+	/* Unrecoverable errors */
+	case -ECONNRESET:
+	case -ENOENT:
+	case -ESHUTDOWN:
+		dev_err(&dev->interface->dev,
+			"Bulk listen CB urb terminated, status: %d\n",
+			urb->status);
+		break;
+	/* Recoverable errors */
+	default:
+		dev_info(&dev->interface->dev,
+			"Bulk listen CB urb error, status: %d. Continuing.\n",
+			urb->status);
+		usb_submit_urb(urb, GFP_KERNEL);
+		break;
 	}
 }
 
