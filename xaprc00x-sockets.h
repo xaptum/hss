@@ -22,7 +22,7 @@ void xaprc00x_socket_shutdown(int socket_id, int dir,
 int xaprc00x_socket_connect_in4(int socket_id, char *addr, int addrlen,
 	__be16 port, int flags, struct rhashtable *socket_hash_table);
 
-int xaprc00x_socket_connect_in6(int socket_id, char *addr, int addrlen, 
+int xaprc00x_socket_connect_in6(int socket_id, char *addr, int addrlen,
 	__be16 port, __be32 flow, __u32 scope, int flags,
 	struct rhashtable *socket_hash_table);
 

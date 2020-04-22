@@ -153,6 +153,7 @@ exit:
 void xaprc00x_socket_close(int socket_id, struct rhashtable *socket_ht)
 {
 	struct scm_host_socket *socket;
+
 	/* Close and free the given socket if it can be found */
 	socket = xaprc00x_get_socket(&socket_id, socket_ht);
 	if (socket) {
@@ -305,6 +306,11 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 	struct msghdr msg;
 	struct kvec vec;
 
+	if (!len) {
+		ret = 0;
+		goto exit;
+	}
+
 	socket = xaprc00x_get_socket(&socket_id, socket_ht);
 	if (socket) {
 		msg.msg_control = NULL;
@@ -315,11 +321,13 @@ int xaprc00x_socket_write(int socket_id, void *buf, int len,
 
 		ret = kernel_sendmsg(socket->sock, &msg, &vec, len, len);
 	}
+
+exit:
 	return ret;
 }
 
 /**
- * xaprc00x_socket_read - Writes to a socket
+ * xaprc00x_socket_read - Reads from a socket
  *
  * @socket_id The socket id to connect
  * @buf The buffer to write
@@ -332,7 +340,7 @@ int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags,
 	struct rhashtable *socket_ht)
 {
 	struct scm_host_socket *socket;
-	struct msghdr msg;
+	struct msghdr msg = {};
 	struct kvec vec;
 	int ret = -EEXIST;
 
@@ -344,7 +352,7 @@ int xaprc00x_socket_read(int socket_id, void *buf, int len, int flags,
 		vec.iov_len = len;
 		vec.iov_base = buf;
 
-		ret = kernel_recvmsg(socket->sock, &msg, &vec, len, len, 0);
+		ret = kernel_recvmsg(socket->sock, &msg, &vec, 1, len, 0);
 	}
 	return ret;
 }

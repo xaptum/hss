@@ -14,13 +14,13 @@
 #include <linux/uaccess.h>
 #include <linux/usb.h>
 #include <linux/usb/cdc.h>
-#include <linux/mutex.h>
 #include <linux/workqueue.h>
 
 #include "xaprc00x-usb.h"
 #include "xaprc00x-backports.h"
 #include "xaprc00x-proxy.h"
 #include "scm.h"
+
 /* Match on vendor ID, interface class and interface subclass only. */
 static const struct usb_device_id xaprc00x_device_table[] = {
 	{ USB_VENDOR_AND_INTERFACE_INFO(
@@ -37,6 +37,7 @@ struct usb_xaprc00x {
 	struct usb_device	*udev;
 	struct usb_interface	*interface;
 	struct semaphore	int_out_sem;
+	struct semaphore	bulk_out_sem;
 	__u8			bulk_in_endpointAddr;
 	__u8			bulk_out_endpointAddr;
 	__u8			cmd_in_endpointAddr;
@@ -45,9 +46,12 @@ struct usb_xaprc00x {
 	struct kref		kref;
 	char			*cmd_in_buffer;
 	void			*cmd_out_buffer;
+	char			*bulk_in_buffer;
+	void			*bulk_out_buffer;
 	struct urb		*cmd_in_urb;
 	struct urb		*cmd_out_urb;
-	struct mutex		cmd_out_mutex;
+	struct urb		*bulk_in_urb;
+	struct urb		*bulk_out_urb;
 	void			*proxy_context;
 };
 
@@ -80,21 +84,28 @@ static void xaprc00x_driver_delete(struct kref *kref)
  */
 static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 {
-	struct usb_endpoint_descriptor *ep_in, *ep_out;
 	struct usb_endpoint_descriptor *ep_cmd_in, *ep_cmd_out;
+	struct usb_endpoint_descriptor *ep_bulk_in, *ep_bulk_out;
 	int error;
 
 	error = usb_find_common_endpoints(dev->interface->cur_altsetting,
-			NULL, NULL, &ep_cmd_in, &ep_cmd_out);
+			&ep_bulk_in, &ep_bulk_out, &ep_cmd_in, &ep_cmd_out);
 
 	if (!error) {
 		/* Store the endpoint addresses */
 		dev->cmd_in_endpointAddr = ep_cmd_in->bEndpointAddress;
 		dev->cmd_out_endpointAddr = ep_cmd_out->bEndpointAddress;
+		dev->bulk_in_endpointAddr = ep_bulk_in->bEndpointAddress;
+		dev->bulk_out_endpointAddr = ep_bulk_out->bEndpointAddress;
 		dev->cmd_interval = ep_cmd_in->bInterval;
-	} else
+	} else {
 		dev_err(&dev->interface->dev,
-			"Could not find all endpoints\n");
+			"Could not find all endpoints cmd_in=%s cmd_out=%s bulk_in=%s bulk_out=%s\n",
+			(ep_cmd_in ? "found" : "(null)"),
+			(ep_cmd_out ? "found" : "(null)"),
+			(ep_bulk_in ? "found" : "(null)"),
+			(ep_bulk_out ? "found" : "(null)"));
+	}
 
 	return error;
 }
@@ -126,12 +137,28 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	dev->cmd_in_urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!dev->cmd_in_urb) {
 		retval = -ENOMEM;
+		dev_err(&dev->interface->dev, "Error for cmd_in_urb");
 		goto error;
 	}
 
 	dev->cmd_out_urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!dev->cmd_out_urb) {
 		retval = -ENOMEM;
+		dev_err(&dev->interface->dev, "Error for cmd_out_urb");
+		goto error_free_in_urb;
+	}
+
+	dev->bulk_in_urb = usb_alloc_urb(0, GFP_KERNEL);
+	if (!dev->bulk_in_urb) {
+		retval = -ENOMEM;
+		dev_err(&dev->interface->dev, "Error for bulk_in_urb");
+		goto error;
+	}
+
+	dev->bulk_out_urb = usb_alloc_urb(0, GFP_KERNEL);
+	if (!dev->bulk_out_urb) {
+		retval = -ENOMEM;
+		dev_err(&dev->interface->dev, "Error for bulk_out_urb");
 		goto error_free_in_urb;
 	}
 
@@ -150,9 +177,25 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 		retval = -ENOMEM;
 		goto error_free_in_buf;
 	}
+
+	dev->bulk_in_buffer = usb_alloc_coherent(dev->udev,
+		sizeof(struct scm_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		GFP_KERNEL, &dev->bulk_in_urb->transfer_dma);
+	if (!dev->bulk_in_buffer) {
+		retval = -ENOMEM;
+		goto error_free_in_buf;
+	}
+
+	dev->bulk_out_buffer = usb_alloc_coherent(dev->udev,
+		XAPRC00X_BULK_OUT_BUF_SIZE,
+		GFP_KERNEL, &dev->bulk_out_urb->transfer_dma);
+	if (!dev->bulk_out_buffer) {
+		retval = -ENOMEM;
+		goto error_free_in_buf;
+	}
+
 	/* Zero fill the out buffer */
 	memset(dev->cmd_out_buffer, 0, sizeof(struct scm_packet) + 64);
-	mutex_init(&dev->cmd_out_mutex);
 
 	/* Tell the USB interface where our device data is located */
 	usb_set_intfdata(interface, dev);
@@ -168,6 +211,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	sema_init(&dev->int_out_sem, 1);
+	sema_init(&dev->bulk_out_sem, 1);
 
 	/* Start listening for commands */
 	xaprc00x_read_cmd(dev);
@@ -201,10 +245,38 @@ static void xaprc00x_read_cmd_callback(struct urb *urb)
 	}
 }
 
+static void xaprc00x_read_bulk_callback(struct urb *urb)
+{
+	struct usb_xaprc00x *dev = urb->context;
+
+	switch (urb->status) {
+	/* Success */
+	case 0:
+		xaprc00x_proxy_rcv_data((void *)dev->bulk_in_buffer,
+			urb->actual_length, dev->proxy_context);
+		usb_submit_urb(urb, GFP_KERNEL);
+		break;
+	/* Unrecoverable errors */
+	case -ECONNRESET:
+	case -ENOENT:
+	case -ESHUTDOWN:
+		dev_err(&dev->interface->dev,
+			"Bulk listen CB urb terminated, status: %d\n",
+			urb->status);
+		break;
+	/* Recoverable errors */
+	default:
+		dev_info(&dev->interface->dev,
+			"Bulk listen CB urb error, status: %d. Continuing.\n",
+			urb->status);
+		usb_submit_urb(urb, GFP_KERNEL);
+		break;
+	}
+}
+
 static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 {
-	int ret = 0;
-
+	/* Start listening for commands */
 	usb_fill_int_urb(dev->cmd_in_urb,
 		dev->udev,
 		usb_rcvintpipe(dev->udev,
@@ -215,14 +287,27 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 		dev,
 		dev->cmd_interval);
 	dev->cmd_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	usb_submit_urb(dev->cmd_in_urb, GFP_ATOMIC);
 
-	ret = usb_submit_urb(dev->cmd_in_urb, GFP_ATOMIC);
+	/* Start listening for data */
+	usb_fill_bulk_urb(dev->bulk_in_urb,
+		dev->udev,
+		usb_rcvbulkpipe(dev->udev,
+			dev->bulk_in_endpointAddr),
+		dev->bulk_in_buffer,
+		sizeof(struct scm_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		xaprc00x_read_bulk_callback,
+		dev);
+	dev->bulk_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	usb_submit_urb(dev->bulk_in_urb, GFP_ATOMIC);
 
 	return 0;
 }
 
+/* Returns the ACK buf and lowers a semaphore to prevent concurrent access */
 void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev)
 {
+	down(&dev->int_out_sem);
 	return dev->cmd_out_buffer;
 }
 
@@ -230,9 +315,7 @@ static void xaprc00x_cmd_out_callback(struct urb *urb)
 {
 	struct usb_xaprc00x *dev = urb->context;
 
-	if (urb->status == 0)
-		pr_info("Cmd sent successfully");
-	else
+	if (urb->status != 0)
 		pr_info("Cmd failed status=%d", urb->status);
 
 	up(&dev->int_out_sem);
@@ -243,12 +326,11 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 	int ret;
 	struct usb_xaprc00x *dev = context;
 
-	down(&dev->int_out_sem);
 	usb_fill_int_urb(dev->cmd_out_urb,
 		dev->udev,
 		usb_sndintpipe(dev->udev,
 			dev->cmd_out_endpointAddr),
-		dev->cmd_out_buffer,
+		msg,
 		msg_len,
 		xaprc00x_cmd_out_callback,
 		dev,
@@ -256,7 +338,50 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 	dev->cmd_out_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 
 	ret = usb_submit_urb(dev->cmd_out_urb, GFP_ATOMIC);
+
 	return ret;
+}
+
+static void xaprc00x_bulk_out_callback(struct urb *urb)
+{
+	struct usb_xaprc00x *dev = urb->context;
+
+	if (urb->status != 0)
+		pr_info("Bulk failed status=%d",
+			urb->status);
+	up(&dev->bulk_out_sem);
+}
+
+int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
+{
+	int ret = -1;
+	struct usb_xaprc00x *dev = context;
+
+	/* Protect over-copying */
+	if (msg_len > XAPRC00X_BULK_OUT_BUF_SIZE)
+		msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
+
+	down(&dev->bulk_out_sem);
+
+	memcpy(dev->bulk_out_buffer, msg, msg_len);
+
+	usb_fill_bulk_urb(dev->bulk_out_urb,
+		dev->udev,
+		usb_sndbulkpipe(dev->udev,
+			dev->bulk_out_endpointAddr),
+		dev->bulk_out_buffer,
+		msg_len,
+		xaprc00x_bulk_out_callback,
+		dev);
+
+	ret = usb_submit_urb(dev->bulk_out_urb, GFP_ATOMIC);
+
+	/* If the queue failed the CB will never be called */
+	if (ret < 0)
+		up(&dev->bulk_out_sem);
+
+	/* Either return the number of bytes sent or negative error code */
+	return (ret == 0) ? msg_len : ret;
 }
 
 static void xaprc00x_driver_disconnect(struct usb_interface *interface)
