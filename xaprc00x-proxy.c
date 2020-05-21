@@ -179,7 +179,7 @@ void xaprc00x_proxy_process_open(struct scm_packet *packet, u16 dev,
 	int family, type, protocol;
 	struct scm_payload_open *payload;
 
-	payload = &packet->open;
+	payload = scm_get_payload_open(packet);
 
 	/* Translate the SCM parameters to ones the socket interface */
 	family = xaprc00x_family_to_host(payload->addr_family);
@@ -220,8 +220,8 @@ void xaprc00x_proxy_process_connect(struct scm_packet *packet, u16 dev,
 	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
 	int ret;
-	struct scm_payload_connect_ip *payload = &packet->connect;
-	struct scm_packet_hdr *hdr = &packet->hdr;
+	struct scm_payload_connect_ip *payload = scm_get_payload_connect(packet);
+	struct scm_packet_hdr *hdr = scm_get_header(packet);
 	int id = hdr->sock_id;
 
 	switch (payload->family) {
@@ -382,7 +382,7 @@ int xaprc00x_proxy_listen_socket(void *param)
 void xaprc00x_proxy_process_close(struct scm_packet *packet, u16 dev,
 	struct scm_packet *ack, struct xaprc00x_proxy_context *context)
 {
-	struct scm_packet_hdr *hdr = &packet->hdr;
+	struct scm_packet_hdr *hdr = scm_get_header(packet);
 	int id = hdr->sock_id;
 
 	xaprc00x_socket_close(id, context->socket_table);

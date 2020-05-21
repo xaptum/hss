@@ -9,26 +9,26 @@
 #include <linux/kernel.h>
 
 enum __attribute__ ((__packed__)) scm_opcode {
-	SCM_OP_OPEN	= cpu_to_le16(0x00),
-	SCM_OP_CONNECT	= cpu_to_le16(0x01),
-	SCM_OP_SHUTDOWN	= cpu_to_le16(0x02),
-	SCM_OP_TRANSMIT	= cpu_to_le16(0x03),
-	SCM_OP_ACK	= cpu_to_le16(0x04),
-	SCM_OP_ACKDATA	= cpu_to_le16(0x05),
-	SCM_OP_CLOSE	= cpu_to_le16(0x06),
-	SCM_OP_MAX	= cpu_to_le16(0xFFFF)
+	SCM_OP_OPEN	= 0x00,
+	SCM_OP_CONNECT	= 0x01,
+	SCM_OP_SHUTDOWN	= 0x02,
+	SCM_OP_TRANSMIT	= 0x03,
+	SCM_OP_ACK	= 0x04,
+	SCM_OP_ACKDATA	= 0x05,
+	SCM_OP_CLOSE	= 0x06,
+	SCM_OP_MAX	= 0xFFFF
 };
 
 enum __attribute__ ((__packed__)) scm_family {
-	SCM_FAM_IP	= cpu_to_le16(0x01),
-	SCM_FAM_IP6	= cpu_to_le16(0x02),
-	SCM_FAM_MAX	= cpu_to_le16(0xFFFF)
+	SCM_FAM_IP	= 0x01,
+	SCM_FAM_IP6	= 0x02,
+	SCM_FAM_MAX	= 0xFFFF
 };
 
 enum __attribute__ ((__packed__)) scm_proto {
-	SCM_PROTO_TCP	= cpu_to_le16(0x01),
-	SCM_PROTO_UDP	= cpu_to_le16(0x02),
-	SCM_PROTO_MAX	= cpu_to_le16(0xFFFF)
+	SCM_PROTO_TCP	= 0x01,
+	SCM_PROTO_UDP	= 0x02,
+	SCM_PROTO_MAX	= 0xFFFF
 };
 
 enum __attribute__ ((__packed__)) scm_type {
