@@ -1,1 +1,5 @@
-This repository contains the host side of the Xaptum TCP Proxy and implementation of the Socket Control Module (SCM). Specific information on the protocol can be found in `SCM_protocol.pdf`. 
+# Socket Control Module
+
+This repository contains the SCM specification as well as Xaptums host-side implementation. 
+
+See `SCM_protocol.pdf` for more information.
