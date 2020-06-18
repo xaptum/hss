@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0+
 /**
- * @file xaprc00x-packet.c
+ * @file hss-packet.c
  * @brief Implementation of various packet related processes.
  */
 
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/kernel.h>
-#include "scm.h"
-#include "xaprc00x-packet.h"
+#include "hss.h"
+#include "hss-packet.h"
 
 
 static atomic_t g_msg_id;
 
 
 /**
- * xaprc00x_get_packet_len - Returns the full length of the scm packet,
+ * hss_get_packet_len - Returns the full length of the hss packet,
  * or 0 if incomplete
  *
  * @packet The packet being examined
@@ -27,21 +27,21 @@ static atomic_t g_msg_id;
  * and returns the read length for the entire packet, or 0 if not enough memory
  * was given.
  */
-int xaprc00x_get_packet_len(struct scm_packet *packet)
+int hss_get_packet_len(struct hss_packet *packet)
 {
-	return sizeof(struct scm_packet_hdr) + packet->hdr.payload_len;
+	return sizeof(struct hss_packet_hdr) + packet->hdr.payload_len;
 }
 
-struct scm_packet *xaprc00x_new_packet(int opcode, int sock_id,
+struct hss_packet *hss_new_packet(int opcode, int sock_id,
 	int max_payload_len)
 {
-	struct scm_packet *packet = kzalloc(sizeof(*packet) + max_payload_len,
+	struct hss_packet *packet = kzalloc(sizeof(*packet) + max_payload_len,
 		GFP_KERNEL);
-	xaprc00x_fill_packet(packet, opcode, sock_id);
+	hss_fill_packet(packet, opcode, sock_id);
 	return packet;
 }
 
-void xaprc00x_fill_packet(struct scm_packet *packet, u16 opcode,
+void hss_fill_packet(struct hss_packet *packet, u16 opcode,
 	u32 sock_id)
 {
 	packet->hdr.msg_id = cpu_to_le16(atomic_inc_return(&g_msg_id));
@@ -49,29 +49,29 @@ void xaprc00x_fill_packet(struct scm_packet *packet, u16 opcode,
 	packet->hdr.sock_id = cpu_to_le16(sock_id);
 }
 
-void xaprc00x_fill_payload(struct scm_packet *packet, void *buf, u32 len)
+void hss_fill_payload(struct hss_packet *packet, void *buf, u32 len)
 {
 	packet->hdr.payload_len = cpu_to_le16(len);
 	if (buf)
-		memcpy(packet->scm_payload_none, buf, len);
+		memcpy(packet->hss_payload_none, buf, len);
 }
 
-void xaprc00x_packet_fill_close(struct scm_packet *packet, uint32_t sock_id)
+void hss_packet_fill_close(struct hss_packet *packet, uint32_t sock_id)
 {
-	xaprc00x_fill_packet(packet, SCM_OP_CLOSE, sock_id);
+	hss_fill_packet(packet, HSS_OP_CLOSE, sock_id);
 }
 
-void xaprc00x_packet_fill_transmit(struct scm_packet *packet, int sock_id,
+void hss_packet_fill_transmit(struct hss_packet *packet, int sock_id,
 	void *buf, size_t len)
 {
-	xaprc00x_fill_packet(packet, SCM_OP_TRANSMIT, sock_id);
-	xaprc00x_fill_payload(packet, buf, len);
+	hss_fill_packet(packet, HSS_OP_TRANSMIT, sock_id);
+	hss_fill_payload(packet, buf, len);
 }
 
-void xaprc00x_packet_fill_noop(struct scm_packet *packet, int len)
+void hss_packet_fill_noop(struct hss_packet *packet, int len)
 {
-	xaprc00x_fill_packet(packet, SCM_OP_MAX, 0);
-	xaprc00x_fill_payload(packet, NULL, len);
+	hss_fill_packet(packet, HSS_OP_MAX, 0);
+	hss_fill_payload(packet, NULL, len);
 }
 
 /* Adds a CPU ordered u32 a little endian unisgned integer */
@@ -82,7 +82,7 @@ void xaprc00x_packet_fill_noop(struct scm_packet *packet, int len)
 #endif
 
 /**
- * xaprc00x_packet_fill_ack - Fill common ACK fields
+ * hss_packet_fill_ack - Fill common ACK fields
  *
  * @orig The header of the packet being responded to
  * @ack The ACK packet to populate
@@ -90,10 +90,10 @@ void xaprc00x_packet_fill_noop(struct scm_packet *packet, int len)
  * Fills common fields common to all ACK transactions that can be known by
  * reading the original message header.
  */
-void xaprc00x_packet_fill_ack(struct scm_packet_hdr *orig,
-	struct scm_packet *ack)
+void hss_packet_fill_ack(struct hss_packet_hdr *orig,
+	struct hss_packet *ack)
 {
-	ack->hdr.opcode = cpu_to_le32(SCM_OP_ACK);
+	ack->hdr.opcode = cpu_to_le32(HSS_OP_ACK);
 	ack->hdr.msg_id = cpu_to_le32(orig->msg_id);
     ack->hdr.sock_id = cpu_to_le32(orig->sock_id);
 	ack->hdr.payload_len = cpu_to_le32(3);
@@ -101,7 +101,7 @@ void xaprc00x_packet_fill_ack(struct scm_packet_hdr *orig,
 }
 
 /**
- * xaprc00x_packet_fill_ack_open - Fill open specific ACK
+ * hss_packet_fill_ack_open - Fill open specific ACK
  *
  * @packet The packet being reponded to
  * @ack The ACK packet to populate
@@ -110,28 +110,28 @@ void xaprc00x_packet_fill_ack(struct scm_packet_hdr *orig,
  *
  * Fills an ACK packet after an OPEN procedure. ID is ignored unless ret==0
  */
-void xaprc00x_packet_fill_ack_open(struct scm_packet *packet,
-	struct scm_packet *ack, int ret, u32 id)
+void hss_packet_fill_ack_open(struct hss_packet *packet,
+	struct hss_packet *ack, int ret, u32 id)
 {
-	xaprc00x_packet_fill_ack(&packet->hdr, ack);
+	hss_packet_fill_ack(&packet->hdr, ack);
 
     add_cpu_to_le(ack->hdr.payload_len, sizeof(ack->ack.empty));
 	switch (ret) {
 	case 0:
-		ack->ack.code = cpu_to_le32(SCM_E_SUCCESS);
+		ack->ack.code = cpu_to_le32(HSS_E_SUCCESS);
 		ack->hdr.sock_id = cpu_to_le32(id);
 		break;
 	case -EINVAL:
-		ack->ack.code = cpu_to_le32(SCM_E_INVAL);
+		ack->ack.code = cpu_to_le32(HSS_E_INVAL);
 		break;
 	default:
-		ack->ack.code = cpu_to_le32(SCM_E_HOSTERR);
+		ack->ack.code = cpu_to_le32(HSS_E_HOSTERR);
 		break;
 	}
 }
 
 /**
- * xaprc00x_packet_fill_ack_connect - Fill connect specific ACK
+ * hss_packet_fill_ack_connect - Fill connect specific ACK
  *
  * @packet The packet being reponded to
  * @ack The ACK packet to populate
@@ -139,31 +139,31 @@ void xaprc00x_packet_fill_ack_open(struct scm_packet *packet,
  *
  * Fills an ACK packet after an CONNECT procedure.
  */
-void xaprc00x_packet_fill_ack_connect(struct scm_packet *packet,
-	struct scm_packet *ack, int ret)
+void hss_packet_fill_ack_connect(struct hss_packet *packet,
+	struct hss_packet *ack, int ret)
 {
-	xaprc00x_packet_fill_ack(&packet->hdr, ack);
+	hss_packet_fill_ack(&packet->hdr, ack);
 	switch (ret) {
 	case 0:
-		ack->ack.code = cpu_to_le32(SCM_E_SUCCESS);
+		ack->ack.code = cpu_to_le32(HSS_E_SUCCESS);
 		break;
 	case -ECONNREFUSED:
-		ack->ack.code = cpu_to_le32(SCM_E_CONNREFUSED);
+		ack->ack.code = cpu_to_le32(HSS_E_CONNREFUSED);
 		break;
 	case -ENETUNREACH:
-		ack->ack.code = cpu_to_le32(SCM_E_NETUNREACH);
+		ack->ack.code = cpu_to_le32(HSS_E_NETUNREACH);
 		break;
 	case -ETIMEDOUT:
-		ack->ack.code = cpu_to_le32(SCM_E_TIMEDOUT);
+		ack->ack.code = cpu_to_le32(HSS_E_TIMEDOUT);
 		break;
 	default:
-		ack->ack.code = cpu_to_le32(SCM_E_HOSTERR);
+		ack->ack.code = cpu_to_le32(HSS_E_HOSTERR);
 		break;
 	}
 }
 
-struct scm_packet_hdr *scm_get_header(struct scm_packet *packet) {
-    struct scm_packet_hdr *hdr = &packet->hdr;
+struct hss_packet_hdr *hss_get_header(struct hss_packet *packet) {
+    struct hss_packet_hdr *hdr = &packet->hdr;
 
     hdr->opcode = le16_to_cpu(hdr->opcode);
     hdr->msg_id = le16_to_cpu(hdr->msg_id);
@@ -173,9 +173,9 @@ struct scm_packet_hdr *scm_get_header(struct scm_packet *packet) {
     return hdr;
 }
 
-struct scm_payload_connect_ip *scm_get_payload_connect(struct scm_packet *packet)
+struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet)
 {
-    struct scm_payload_connect_ip *connect = &packet->connect;
+    struct hss_payload_connect_ip *connect = &packet->connect;
 
     connect->family = le16_to_cpu(connect->family);
     connect->port = le16_to_cpu(connect->port);
@@ -186,7 +186,7 @@ struct scm_payload_connect_ip *scm_get_payload_connect(struct scm_packet *packet
 }
 
 /**
- * scm_payload_open - Return OPEN payload from SCM packet in system byte order
+ * hss_payload_open - Return OPEN payload from HSS packet in system byte order
  *
  * @packet The packet being read
  *
@@ -195,9 +195,9 @@ struct scm_payload_connect_ip *scm_get_payload_connect(struct scm_packet *packet
  *
  * Return: A pointer to the payload section of the packet.
  */
-struct scm_payload_open *scm_get_payload_open(struct scm_packet *packet)
+struct hss_payload_open *hss_get_payload_open(struct hss_packet *packet)
 {
-    struct scm_payload_open *open = &packet->open;
+    struct hss_payload_open *open = &packet->open;
 
     open->handle = le32_to_cpu(open->handle);
     open->protocol = le16_to_cpu(open->protocol);

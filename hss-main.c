@@ -1,5 +1,5 @@
 /**
- * @file xaprc00x-main.c
+ * @file hss-main.c
  * @brief Main for the Xaptum Router Card driver
  * @author Daniel Berliner
  */

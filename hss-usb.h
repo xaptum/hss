@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /**
- * @file xaprc00x_usb.h
+ * @file hss_usb.h
  * @brief Implementation of the usb driver part for the xaptum tcp proxy
  *        Based of the usb-skeleton code
  */
@@ -8,12 +8,12 @@
 #define __XARPCD_USB_H_
 
 #define USB_VENDOR_ID_XAPTUM	 0x2fe0
-#define USB_SUBCLASS_SCM_XAPTUM   0xab
+#define USB_SUBCLASS_HSS_XAPTUM   0xab
 
-struct usb_xaprc00x;
-int xaprc00x_cmd_out(void *context, void *msg, int msg_len);
-int xaprc00x_bulk_out(void *context, void *msg, int msg_len);
-void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev);
+struct usb_hss;
+int hss_cmd_out(void *context, void *msg, int msg_len);
+int hss_bulk_out(void *context, void *msg, int msg_len);
+void *hss_get_ack_buf(struct usb_hss *dev);
 
 
 #define XAPRC00X_BULK_IN_BUF_SIZE 468

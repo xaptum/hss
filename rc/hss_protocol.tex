@@ -46,7 +46,7 @@
 {\Huge\bfseries  
 	\begin{adjustwidth}{100pt}{0pt}
 		\begin{flushright}
-		\textbf{Universal Serial Bus Communications Class Subclass Specifications for Socket Management Protocol}\\
+		\textbf{Universal Serial Bus Communications Class Subclass Specifications for Host Socket Sharing}\\
 		~\\
 		Revision 0.1\\
 		September 4, 2019
@@ -91,7 +91,7 @@
 	\mainmatter
 	\section{Introduction}
 	\subsection{Purpose}
-	The Socket Control Module (SCM) subclass is a protocol by which USB devices can efficiently manage and use Berkeley/POSIX-style sockets on the host.\\
+	The Host Socket Sharing (HSS) subclass is a protocol by which USB devices can efficiently manage and use Berkeley/POSIX-style sockets on the host.\\
 	\\
 	The specification currently defines support for the INET (IPv4) and INET6 (IPv6) protocol families and the TCP and UDP protocols. Future versions may add support for additional families and protocols.\\
 	\\
@@ -111,46 +111,46 @@
 	In this specification, the word ‘shall’ or ‘must’ is used for mandatory requirements, the word
 	‘should’ is used to express recommendations and the word ‘may’ is used for options. 
 	\section{Overview}
-	Socket Control Model (SCM) is a specification for efficent management of sockets on a host by its devices. SCM sends Application Layer traffic and internal socket management commands from the device to the host over USB. This module requires host implementaitons for each suported Network and Transport layer protocols, but other layers are beyond its scope.
-	\subsection{What is Socket Control Module (SCM)?}
-	SCM allows a USB connected device to remotely create and control sockets on its host. A device may only control sockets it has created, and it shall expect exclusive control over this socket. Devices cannot control sockets created by other devices on the same host, and the host will not expose a devices socket for use by other applications.\\
+	Host Socket Sharing (HSS) is a specification for efficent management of sockets on a host by its devices. HSS sends Application Layer traffic and internal socket management commands from the device to the host over USB. This module requires host implementaitons for each suported Network and Transport layer protocols, but other layers are beyond its scope.
+	\subsection{What is Host Socket Sharing (HSS)?}
+	HSS allows a USB connected device to remotely create and control sockets on its host. A device may only control sockets it has created, and it shall expect exclusive control over this socket. Devices cannot control sockets created by other devices on the same host, and the host will not expose a devices socket for use by other applications.\\
 	\\
-	Prior to SCM, connected devices would have to be assigned an IP address requiring the host to bridge the device or use NAT which also requires userspace configurations to the host. SCM allows a host to act on behalf of its device and provice it's network connection in a truly plug and play manner. This implicitly subjects the device to the same firewall rules and external network considerations without specific configuration.\\
+	Prior to HSS, connected devices would have to be assigned an IP address requiring the host to bridge the device or use NAT which also requires userspace configurations to the host. HSS allows a host to act on behalf of its device and provice it's network connection in a truly plug and play manner. This implicitly subjects the device to the same firewall rules and external network considerations without specific configuration.\\
 	\\
-	The below figure illustrates a possible use case where a new socket type (Sock 1) is created on the device to interface with SCM. This allows userspace applications to interact with a standard protocol. 
+	The below figure illustrates a possible use case where a new socket type (Sock 1) is created on the device to interface with HSS. This allows userspace applications to interact with a standard protocol. 
 	\begin{figure}[H]
 		\begin{center}
-			\caption[SCM Overview]{SCM Overview.}
-			\scalebox{0.9}{\input{SCMDepiction.tex}}
+			\caption[HSS Overview]{HSS Overview.}
+			\scalebox{0.9}{\input{HSSDepiction.tex}}
 		\end{center}
 	\end{figure}
 
 	\subsection{USB Endpoints}
-	SCM's endpoint requirements consist of a bulk pair (In and Out) and command pair (In and Out). 
-	The SCM Device Class uses the standard Endpoint descriptor, as defined in chapter 9 of the USB
+	HSS's endpoint requirements consist of a bulk pair (In and Out) and command pair (In and Out). 
+	The HSS Device Class uses the standard Endpoint descriptor, as defined in chapter 9 of the USB
 	Specification. \\
-	Additionally, SCM requires a pair of bulk-in/bulk-out endpoints and a control-in endpoint for recieving commands.
-	\section{Socket Control Model (SCM)}
-	The payload of the USB packet contains any combination of a single SCM packet, 
-	two or more SCM packets or a split SCM packet. SCM transfers can be split across USB packets but shall not be split across USB transfers. 
-	\subsection{SCM Packet Format}
-	The packet format defines an SCM packet. For information regarding USB packets refer to [USB2.0] specification. Details packets formats can be found in section 8.4 of the [USB2.0] specification. \\
+	Additionally, HSS requires a pair of bulk-in/bulk-out endpoints and a control-in endpoint for recieving commands.
+	\section{Host Socket Sharing (HSS)}
+	The payload of the USB packet contains any combination of a single HSS packet, 
+	two or more HSS packets or a split HSS packet. HSS transfers can be split across USB packets but shall not be split across USB transfers. 
+	\subsection{HSS Packet Format}
+	The packet format defines an HSS packet. For information regarding USB packets refer to [USB2.0] specification. Details packets formats can be found in section 8.4 of the [USB2.0] specification. \\
 	\\
-	All SCM packets begin with a one-byte opcode (see Table~\ref{tab:table1}), a one-byte message ID and a one-byte Socket ID. \\
+	All HSS packets begin with a one-byte opcode (see Table~\ref{tab:table1}), a one-byte message ID and a one-byte Socket ID. \\
 	\\
-	While represented differently, both types of SCM packets will indicate the length of data being sent and then the data being sent. A packets data segment will always immediately proceed the header and this packet will always be sent in one USB transfer (although USB may split the SCM packet into many USB packets). \\
+	While represented differently, both types of HSS packets will indicate the length of data being sent and then the data being sent. A packets data segment will always immediately proceed the header and this packet will always be sent in one USB transfer (although USB may split the HSS packet into many USB packets). \\
 	\\
 	\begin{figure}[H]
-		\caption[SCM Packet header and data.]{SCM Packet header and data.}
+		\caption[HSS Packet header and data.]{HSS Packet header and data.}
 			\centerline {
 			\adjustbox{minipage=0.2\textwidth,cfbox=black,bgcolor=SkyBlue}{
-				\centerline{SCM Header}
+				\centerline{HSS Header}
 			}\adjustbox{minipage=0.35\textwidth,cfbox=black,bgcolor=LimeGreen}{
 				\centerline {Data...}
 			}
 		} 
 	\end{figure}
-	\subsection{SCM Error Codes}
+	\subsection{HSS Error Codes}
 	\begin{table}[H]
 		\begin{center}
 			\caption{ACK Codes for OPEN}
@@ -172,10 +172,10 @@
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
-	\subsection{SCM Packet Types}
-	SCM has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
+	\subsection{HSS Packet Types}
+	HSS has two different types of commands: Command and Payload. Command supports quickly sending short messages and Payload supports sending large messages.
 	\subsubsection{Common Fields}
-	All SCM packets begin with the following three bytes:\\
+	All HSS packets begin with the following three bytes:\\
 	\begin{enumerate}
 		\item \textbf{Opcode}: 8-bit unsigned integer identifying what type of packet follows. All Op Codes are defined as either a Command or Data type so this field is sufficient to decide which type of structure to expect.
 		\item \textbf{Message ID}: 8-bit unsigned integer provided to allow the receiver to identify the received message when replying. This is always genrated by the sender, and the receiver may only reply using the given ID once. Sending an ACK or REPLY to an unknown Message ID causes undefiend behavior.
@@ -204,7 +204,7 @@
 	\end{table}
 
 	\subsubsection{Command}
-	SCM Command operations relate to opening, closing and managing sockets across USB. These requests are infrequent and short in length so they do not need to be mixed with larger data transmissions that can take a long time to process. Command packets are always sent over the USB Control EP and have a maximum length of 64 bytes including the header.\\
+	HSS Command operations relate to opening, closing and managing sockets across USB. These requests are infrequent and short in length so they do not need to be mixed with larger data transmissions that can take a long time to process. Command packets are always sent over the USB Control EP and have a maximum length of 64 bytes including the header.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -215,7 +215,7 @@
 		\bitbox{32}{Data (Up to 52 bytes)...} \\
 	\end{bytefield}\\ 
 	\subsubsection{Data}
-	SCM Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 52 bytes.\\
+	HSS Data packets are meant for forwarding data across USB bulk endpoints. These requests can contain large amounts of data. These requests are either for sending data transmitted across sockets or acknowledging messages with a response longer than 52 bytes.\\
 	\\
 	\begin{bytefield}[bitwidth=1.7em]{32}
 		\bitheader{0,8,16,24,31} \\
@@ -225,9 +225,9 @@
 		\bitbox{32}{dPayloadLen} \\
 		\bitbox{32}{Payload Data...} \\
 	\end{bytefield}\\
-	{SCM Packets} \mbox{}
-	All values in SCM packets are little endian unless otherwise noted. All IDs and integer values are unsigned unless otherwise noted.
-	\subsubsection{SCM Command Packet Formats}
+	{HSS Packets} \mbox{}
+	All values in HSS packets are little endian unless otherwise noted. All IDs and integer values are unsigned unless otherwise noted.
+	\subsubsection{HSS Command Packet Formats}
 	\setcounter{secnumdepth}{5}
 	\paragraph{OPEN} \mbox{}\\
 	The OPEN command is always initiated by the device to the host. The device will send an OPEN packet with no Sock ID in the header but a 32-bit handle in the payload. The host will reply to all operations on this sock with this handle. \\
@@ -391,7 +391,7 @@
 			\end{tabular}
 		\end{center}
 	\end{table} \mbox{}\\
-	\subsubsection{SCM Data Packet Formats} \mbox{}
+	\subsubsection{HSS Data Packet Formats} \mbox{}
 	Data packets contain arbitrary data immediately after the header of whatever length is contained in the headers length field. \\
 	\\
 	Data Length will always be an unsigned 32-bit integer. 
@@ -440,7 +440,7 @@
 		\bitbox[t]{32}{}
 	\end{bytefield}\\
 
-	\subsection{SCM Packet Ordering}
+	\subsection{HSS Packet Ordering}
 	Synchronization must be maintained to ensure that all commands arrive at the detinsation in the order they were requested. In particular, CLOSE commands shall not be transmitted while there is still unsent data and more data shall not be queued to transmit while a CLOSE is waiting to be sent. 
 	
 	\subsection{Multiple Devices and Seperation}
@@ -450,13 +450,13 @@
 	Fig A describes the process for the receiver on both ends to assemble and transmit packets from USB to their respective proxies. The \colorbox{lightgray}{\lstinline{Send Command To Proxy}} procedure can be assumed to be nonblocking, after which the data passed in can be safely freed. \\
 	\\	
 	\subsection{Processing Flow}
-	\subsubsection{Receiving SCM Packets From USB}
-	SCM transmission packets are sent over USB bulk transfers. SCM transfers may not be split over multiple bulk transfers, but may be split over USB Bulk Packets within a single transfers. Many SCM tranmission packets may be sent in one bulk transfer. This means that SCM packet headers may also be split between SCM packets. \\
+	\subsubsection{Receiving HSS Packets From USB}
+	HSS transmission packets are sent over USB bulk transfers. HSS transfers may not be split over multiple bulk transfers, but may be split over USB Bulk Packets within a single transfers. Many HSS tranmission packets may be sent in one bulk transfer. This means that HSS packet headers may also be split between HSS packets. \\
 	\\
-	SCM transfers will end with one of a short USB packet, zero-length packet over USB (if supported) or a zero-length SCM transfer. Sending a zero-length USB packet when the reciever is expecting the continuation of a SCM packet causes undefined behavior. 
+	HSS transfers will end with one of a short USB packet, zero-length packet over USB (if supported) or a zero-length HSS transfer. Sending a zero-length USB packet when the reciever is expecting the continuation of a HSS packet causes undefined behavior. 
 	\begin{figure}[H]
 	\begin{center}
-		\caption[SCM Packet receive Flow.]{SCM Packet receive Flow.}
+		\caption[HSS Packet receive Flow.]{HSS Packet receive Flow.}
 		 \resizebox{\linewidth}{!}{\input{USBRead.tex}}
 	\end{center}
 	\end{figure}
@@ -485,7 +485,7 @@
 	The figure below illustrates how either the host or device should its handle socket write calls. 
 	\begin{figure}[H]
 	\begin{center}
-		\caption[Writing Data to SCM.]{Writing Data to SCM.}
+		\caption[Writing Data to HSS.]{Writing Data to HSS.}
 		\resizebox{\linewidth}{!}{\input{WriteLocal.tex}}
 	\end{center}
 	\end{figure}
