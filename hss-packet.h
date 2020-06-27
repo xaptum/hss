@@ -28,7 +28,7 @@ void hss_packet_fill_ack_open(struct hss_packet *packet,
 void hss_packet_fill_ack_connect(struct hss_packet *packet,
 	struct hss_packet *ack, int ret);
 
-struct hss_packet_hdr *hss_get_header(struct hss_packet *packet);
-struct hss_payload_open *hss_get_payload_open(struct hss_packet *packet);
-struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet);
+struct hss_payload_open *hss_get_payload_open(struct hss_packet *packet, struct hss_payload_open *out);
+struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet, struct hss_payload_connect_ip *out);
+struct hss_packet_hdr *hss_get_header(struct hss_packet *packet, struct hss_packet_hdr *out);
 #endif

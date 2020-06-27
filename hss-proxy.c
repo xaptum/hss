@@ -177,34 +177,34 @@ void hss_proxy_process_open(struct hss_packet *packet, u16 dev,
 
 	int ret;
 	int family, type, protocol;
-	struct hss_payload_open *payload;
+	struct hss_payload_open payload;
 
-	payload = hss_get_payload_open(packet);
+	hss_get_payload_open(packet, &payload);
 
 	/* Translate the HSS parameters to ones the socket interface */
-	family = hss_family_to_host(payload->addr_family);
+	family = hss_family_to_host(payload.addr_family);
 	if (family < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	protocol = hss_protocol_to_host(payload->protocol);
+	protocol = hss_protocol_to_host(payload.protocol);
 	if (hss_protocol_to_host < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
 
-	type = hss_type_to_host(payload->type);
+	type = hss_type_to_host(payload.type);
 	if (type < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
-	ret = hss_socket_create(payload->handle, family, type, protocol,
+	ret = hss_socket_create(payload.handle, family, type, protocol,
 		context->socket_table);
 
 fill_ack:
 	/* If creation succeded return created ID without the device */
-	hss_packet_fill_ack_open(packet, ack, ret, payload->handle);
+	hss_packet_fill_ack_open(packet, ack, ret, payload.handle);
 }
 
 /**
@@ -220,18 +220,22 @@ void hss_proxy_process_connect(struct hss_packet *packet, u16 dev,
 	struct hss_packet *ack, struct hss_proxy_context *context)
 {
 	int ret;
-	struct hss_payload_connect_ip *payload = hss_get_payload_connect(packet);
-	struct hss_packet_hdr *hdr = hss_get_header(packet);
-	int id = hdr->sock_id;
+	struct hss_payload_connect_ip payload;
+	struct hss_packet_hdr hdr; 
+	int id;
 
-	switch (payload->family) {
+	hss_get_header(packet, &hdr);
+	hss_get_payload_connect(packet, &payload);
+	id = hdr.sock_id;
+
+	switch (payload.family) {
 	case HSS_FAM_IP:
 		pr_info("Connecting IPv4");
 		ret = hss_socket_connect_in4(
 			id,
-			(char *)&(payload->addr.ip4.ip_addr),
-			sizeof(payload->addr.ip4.ip_addr),
-			payload->port,
+			(char *)&(payload.addr.ip4.ip_addr),
+			sizeof(payload.addr.ip4.ip_addr),
+			payload.port,
 			0,
 			context->socket_table);
 		break;
@@ -239,11 +243,11 @@ void hss_proxy_process_connect(struct hss_packet *packet, u16 dev,
 		pr_info("Connecting IPv6");
 		ret = hss_socket_connect_in6(
 			id,
-			(char *)&(payload->addr.ip6.ip_addr),
-			sizeof(payload->addr.ip6.ip_addr),
-			payload->port,
-			payload->addr.ip6.flow_info,
-			payload->addr.ip6.scope_id,
+			(char *)&(payload.addr.ip6.ip_addr),
+			sizeof(payload.addr.ip6.ip_addr),
+			payload.port,
+			payload.addr.ip6.flow_info,
+			payload.addr.ip6.scope_id,
 			0,
 			context->socket_table);
 		break;
@@ -382,13 +386,14 @@ int hss_proxy_listen_socket(void *param)
 void hss_proxy_process_close(struct hss_packet *packet, u16 dev,
 	struct hss_packet *ack, struct hss_proxy_context *context)
 {
-	struct hss_packet_hdr *hdr = hss_get_header(packet);
-	int id = hdr->sock_id;
+	struct hss_packet_hdr hdr;
 
-	hss_socket_close(id, context->socket_table);
+	hss_get_header(packet, &hdr);
+
+	hss_socket_close(hdr.sock_id, context->socket_table);
 
 	/* Close ACKs do not contain status data. */
-	hss_packet_fill_ack(hdr, ack);
+	hss_packet_fill_ack(&hdr, ack);
 }
 
 /**

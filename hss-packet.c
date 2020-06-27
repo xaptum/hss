@@ -162,25 +162,27 @@ void hss_packet_fill_ack_connect(struct hss_packet *packet,
 	}
 }
 
-struct hss_packet_hdr *hss_get_header(struct hss_packet *packet) {
+struct hss_packet_hdr *hss_get_header(struct hss_packet *packet, struct hss_packet_hdr *out) {
     struct hss_packet_hdr *hdr = &packet->hdr;
 
-    hdr->opcode = le16_to_cpu(hdr->opcode);
-    hdr->msg_id = le16_to_cpu(hdr->msg_id);
-    hdr->sock_id = le32_to_cpu(hdr->sock_id);
-    hdr->payload_len = le32_to_cpu(hdr->payload_len);
+    out->opcode = le16_to_cpu(hdr->opcode);
+    out->msg_id = le16_to_cpu(hdr->msg_id);
+    out->sock_id = le32_to_cpu(hdr->sock_id);
+    out->payload_len = le32_to_cpu(hdr->payload_len);
 
     return hdr;
 }
 
-struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet)
+struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet, struct hss_payload_connect_ip *out)
 {
     struct hss_payload_connect_ip *connect = &packet->connect;
 
-    connect->family = le16_to_cpu(connect->family);
-    connect->port = le16_to_cpu(connect->port);
+    out->family = le16_to_cpu(connect->family);
+    out->port = le16_to_cpu(connect->port);
 
     /* Note: All address fields are passed in network byte order */
+    memcpy(&out->addr, &connect->addr,
+        out->family == HSS_FAM_IP6 ? sizeof(struct hss_payload_connect_ip6) : sizeof(struct hss_payload_connect_ip4));
 
     return connect;
 }
@@ -195,13 +197,13 @@ struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_packet *packet
  *
  * Return: A pointer to the payload section of the packet.
  */
-struct hss_payload_open *hss_get_payload_open(struct hss_packet *packet)
+struct hss_payload_open *hss_get_payload_open(struct hss_packet *packet, struct hss_payload_open *out)
 {
     struct hss_payload_open *open = &packet->open;
 
-    open->handle = le32_to_cpu(open->handle);
-    open->protocol = le16_to_cpu(open->protocol);
-    open->addr_family = le16_to_cpu(open->addr_family);
-
+    out->handle = le32_to_cpu(open->handle);
+    out->protocol = le16_to_cpu(open->protocol);
+    out->addr_family = le16_to_cpu(open->addr_family);
+    out->type = open->type;
     return open;
 }
