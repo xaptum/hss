@@ -15,7 +15,6 @@
 #include "hss-proxy.h"
 #include "hss-sockets.h"
 #include "hss-usb.h"
-#include "hss-packet.h"
 #include "hss-ring.h"
 
 /* NOTE: Size must be a power of 2 for circ_buf */
@@ -48,6 +47,7 @@ static void hss_proxy_process_data(struct work_struct *work);
 int hss_proxy_listen_socket(void *param);
 
 static u16 hss_dev_counter;
+static atomic_t g_msg_id;
 
 /**
  * hss_proxy_init - Initializes an instance of the HSS proxy
@@ -65,6 +65,7 @@ void *hss_proxy_init(void *usb_context)
 {
 	int ret;
 	struct hss_proxy_context *context = NULL;
+
 	/* Make the name large enough to hold the largest possible value */
 	char name[sizeof("hss_data_wq_4294967296")];
 
@@ -296,7 +297,7 @@ static void hss_send_close(
 	int hss_msg_len = sizeof(struct hss_packet);
 
 	/* Send a close to the device */
-	hss_packet_fill_close(msg, sock_id);
+	hss_packet_fill_close(msg, sock_id, atomic_inc_return(&g_msg_id));
 	proxy_cmd_buf = hss_get_ack_buf(usb_context);
 	memcpy(proxy_cmd_buf, msg, hss_msg_len);
 	hss_cmd_out(usb_context, proxy_cmd_buf, hss_msg_len);
@@ -323,7 +324,7 @@ static void hss_send_transmit(
 	int bulk_ret;
 	int packet_len = payload_len + sizeof(struct hss_packet_hdr);
 
-	hss_packet_fill_transmit(msg, sock_id, NULL, payload_len);
+	hss_packet_fill_transmit(msg, sock_id, NULL, payload_len, atomic_inc_return(&g_msg_id));
 	bulk_ret = hss_bulk_out(usb_context, msg, packet_len);
 
 	/* Bulk_out should only return send length requested */
