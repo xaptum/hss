@@ -189,7 +189,7 @@ void hss_proxy_process_open(struct hss_packet *packet, u16 dev,
 	}
 
 	protocol = hss_protocol_to_host(payload.protocol);
-	if (hss_protocol_to_host < 0) {
+	if (protocol < 0) {
 		ret = -EINVAL;
 		goto fill_ack;
 	}
