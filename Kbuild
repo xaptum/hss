@@ -1,2 +1,2 @@
-obj-m += xaprc00x.o
-xaprc00x-objs := xaprc00x-main.o xaprc00x-usb.o xaprc00x-sockets.o xaprc00x-backports.o xaprc00x-proxy.o xaprc00x-packet.o xaprc00x-ring.o
+obj-m += hss.o
+hss-objs := hss-main.o hss-usb.o hss-sockets.o hss-backports.o hss-proxy.o hss-ring.o

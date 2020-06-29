@@ -23,7 +23,7 @@
 
 #include <linux/module.h>
 
-#include "xaprc00x-backports.h"
+#include "hss-backports.h"
 
 #if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
 // Backported from the kernel source

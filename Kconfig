@@ -2,7 +2,7 @@
 # XAP-RC-00x
 #
 
-config  XAPRC00X
+config  XAPTUM_HSS
         tristate "Xaptum Router Card Proxy Driver"
         depends on USB_SUPPORT
         ---help---

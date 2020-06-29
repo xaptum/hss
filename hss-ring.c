@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /**
- * @file xaprc00x-ring.c
+ * @file hss-ring.c
  * @brief Functions for reading and writing arbitrary data to and form a circ
  *        buffer.
  */
@@ -9,10 +9,10 @@
 #include <linux/compiler.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
-#include "xaprc00x-ring.h"
+#include "hss-ring.h"
 
 /**
- * xaprc00x_ring_section - Gives the caller parameters to consume data from a
+ * hss_ring_section - Gives the caller parameters to consume data from a
  * ring buffer.
  *
  * Not all consumers want to perform a memcpy to another locationso this
@@ -34,12 +34,12 @@
  * This only returns information on where to read from the buffer, it does not
  * reserve or restrict other consumers from using this data.
  */
-struct xaprc00x_ring_section xaprc00x_consumer_section(
+struct hss_ring_section hss_consumer_section(
 	struct circ_buf *ring, int ring_len, int len)
 {
 	int head;
 	int tail;
-	struct xaprc00x_ring_section ret = {-1, 0, 0};
+	struct hss_ring_section ret = {-1, 0, 0};
 
 	head = READ_ONCE(ring->head);
 	tail = READ_ONCE(ring->tail);
@@ -57,7 +57,7 @@ exit:
 }
 
 /**
- * xaprc00x_ring_consume - Consumes a secion of data on the ring
+ * hss_ring_consume - Consumes a secion of data on the ring
  *
  * When a consumer no longer needs a section of data on the circular buffer
  * this function should be called to free the data in the structure. Once
@@ -67,10 +67,10 @@ exit:
  * @ring_len The length of the circ_buf buffer
  * @section The section of memory to consume
  */
-void xaprc00x_ring_consume(
+void hss_ring_consume(
 	struct circ_buf *ring,
 	int ring_len,
-	struct xaprc00x_ring_section section)
+	struct hss_ring_section section)
 {
 	int newtail =
 		(section.start + section.len + section.wrap) & (ring_len - 1);
@@ -78,7 +78,7 @@ void xaprc00x_ring_consume(
 }
 
 /**
- * xaprc00x_ring_write - Place an arbitrary number of bytes on a circ_buf
+ * hss_ring_write - Place an arbitrary number of bytes on a circ_buf
  * structure
  *
  * @ring A pointer to the circ_buf object to manipulate
@@ -94,7 +94,7 @@ void xaprc00x_ring_consume(
  * dst must already be allocated with space for a `n` byte copy
  * This function may modify ring->head to fill the buffer
  */
-int xaprc00x_ring_write(struct circ_buf *ring, int ring_len, char *buf, int len)
+int hss_ring_write(struct circ_buf *ring, int ring_len, char *buf, int len)
 {
 	int head;
 	int tail;

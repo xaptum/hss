@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /**
- * @file xaprc00x_usb.c
+ * @file hss_usb.c
  * @brief Implementation of the usb driver part for the xaptum tcp proxy
  *        Based of the usb-skeleton code
  */
@@ -16,24 +16,24 @@
 #include <linux/usb/cdc.h>
 #include <linux/workqueue.h>
 
-#include "xaprc00x-usb.h"
-#include "xaprc00x-backports.h"
-#include "xaprc00x-proxy.h"
-#include "scm.h"
+#include "hss-usb.h"
+#include "hss-backports.h"
+#include "hss-proxy.h"
+#include "hss.h"
 
 /* Match on vendor ID, interface class and interface subclass only. */
-static const struct usb_device_id xaprc00x_device_table[] = {
+static const struct usb_device_id hss_device_table[] = {
 	{ USB_VENDOR_AND_INTERFACE_INFO(
 			USB_VENDOR_ID_XAPTUM,
 			USB_CLASS_VENDOR_SPEC,
-			USB_SUBCLASS_SCM_XAPTUM,
+			USB_SUBCLASS_HSS_XAPTUM,
 			USB_CDC_PROTO_NONE)
 	}, { }
 };
-MODULE_DEVICE_TABLE(usb, xaprc00x_device_table);
+MODULE_DEVICE_TABLE(usb, hss_device_table);
 
 /* Structure to hold all of our device specific stuff */
-struct usb_xaprc00x {
+struct usb_hss {
 	struct usb_device	*udev;
 	struct usb_interface	*interface;
 	struct semaphore	int_out_sem;
@@ -55,25 +55,25 @@ struct usb_xaprc00x {
 	void			*proxy_context;
 };
 
-#define to_xaprc00x_dev(d) container_of(d, struct usb_xaprc00x, kref)
+#define to_hss_dev(d) container_of(d, struct usb_hss, kref)
 
 /* Forward declarations */
-static int xaprc00x_read_cmd(struct usb_xaprc00x *dev);
+static int hss_read_cmd(struct usb_hss *dev);
 
 /********************************************************************
  * USB Driver Operations
  ********************************************************************/
 
-static void xaprc00x_driver_delete(struct kref *kref)
+static void hss_driver_delete(struct kref *kref)
 {
-	struct usb_xaprc00x *dev = to_xaprc00x_dev(kref);
+	struct usb_hss *dev = to_hss_dev(kref);
 
 	usb_put_dev(dev->udev);
 	kfree(dev);
 }
 
 /**
- * xaprc00x_assign_endpoints - Find common bulk and int endpoints
+ * hss_assign_endpoints - Find common bulk and int endpoints
  *
  * @dev The device to search
  *
@@ -82,7 +82,7 @@ static void xaprc00x_driver_delete(struct kref *kref)
  * Returns: 0 if all endpoints were matched, -ENXIO otherwise
  *
  */
-static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
+static int hss_assign_endpoints(struct usb_hss *dev)
 {
 	struct usb_endpoint_descriptor *ep_cmd_in, *ep_cmd_out;
 	struct usb_endpoint_descriptor *ep_bulk_in, *ep_bulk_out;
@@ -113,10 +113,10 @@ static int xaprc00x_assign_endpoints(struct usb_xaprc00x *dev)
 /**
  * Probe function called when device with correct vendor / productid is found
  */
-static int xaprc00x_driver_probe(struct usb_interface *interface,
+static int hss_driver_probe(struct usb_interface *interface,
 			const struct usb_device_id *id)
 {
-	struct usb_xaprc00x *dev;
+	struct usb_hss *dev;
 	int retval = 0;
 
 	/* Allocate and initialize the device */
@@ -130,7 +130,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	dev->interface = interface;
 
 	/* Set up the bulk and interrupt endpoints */
-	retval = xaprc00x_assign_endpoints(dev);
+	retval = hss_assign_endpoints(dev);
 	if (retval)
 		goto error;
 
@@ -163,7 +163,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	dev->cmd_in_buffer = usb_alloc_coherent(dev->udev,
-		sizeof(struct scm_packet), GFP_KERNEL,
+		sizeof(struct hss_packet), GFP_KERNEL,
 		&dev->cmd_in_urb->transfer_dma);
 	if (!dev->cmd_in_buffer) {
 		retval = -ENOMEM;
@@ -171,7 +171,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	dev->cmd_out_buffer = usb_alloc_coherent(dev->udev,
-		sizeof(struct scm_packet), GFP_KERNEL,
+		sizeof(struct hss_packet), GFP_KERNEL,
 		&dev->cmd_out_urb->transfer_dma);
 	if (!dev->cmd_out_buffer) {
 		retval = -ENOMEM;
@@ -179,7 +179,7 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	dev->bulk_in_buffer = usb_alloc_coherent(dev->udev,
-		sizeof(struct scm_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		sizeof(struct hss_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
 		GFP_KERNEL, &dev->bulk_in_urb->transfer_dma);
 	if (!dev->bulk_in_buffer) {
 		retval = -ENOMEM;
@@ -195,16 +195,16 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	}
 
 	/* Zero fill the out buffer */
-	memset(dev->cmd_out_buffer, 0, sizeof(struct scm_packet) + 64);
+	memset(dev->cmd_out_buffer, 0, sizeof(struct hss_packet) + 64);
 
 	/* Tell the USB interface where our device data is located */
 	usb_set_intfdata(interface, dev);
 
 	/* let the user know what node this device is now attached to */
-	dev_info(&interface->dev, "SCM Driver now attached.");
+	dev_info(&interface->dev, "HSS Driver now attached.");
 
 	/* Initialize the host proxy and hold on to its instance */
-	dev->proxy_context = xaprc00x_proxy_init(dev);
+	dev->proxy_context = hss_proxy_init(dev);
 	if (!dev->proxy_context) {
 		retval = -ENODEV;
 		goto error_free_out_buf;
@@ -214,45 +214,45 @@ static int xaprc00x_driver_probe(struct usb_interface *interface,
 	sema_init(&dev->bulk_out_sem, 1);
 
 	/* Start listening for commands */
-	xaprc00x_read_cmd(dev);
+	hss_read_cmd(dev);
 
 	return 0;
 
 error_free_out_buf:
-	usb_free_coherent(dev->udev, sizeof(struct scm_packet),
+	usb_free_coherent(dev->udev, sizeof(struct hss_packet),
 		dev->cmd_out_buffer, dev->cmd_out_urb->transfer_dma);
 error_free_in_buf:
-	usb_free_coherent(dev->udev, sizeof(struct scm_packet),
+	usb_free_coherent(dev->udev, sizeof(struct hss_packet),
 		dev->cmd_in_buffer, dev->cmd_in_urb->transfer_dma);
 error_free_out_urb:
 	usb_free_urb(dev->cmd_out_urb);
 error_free_in_urb:
 	usb_free_urb(dev->cmd_in_urb);
 error:
-	kref_put(&dev->kref, xaprc00x_driver_delete);
+	kref_put(&dev->kref, hss_driver_delete);
 
 	return retval;
 }
 
-static void xaprc00x_read_cmd_callback(struct urb *urb)
+static void hss_read_cmd_callback(struct urb *urb)
 {
-	struct usb_xaprc00x *dev = urb->context;
+	struct usb_hss *dev = urb->context;
 
 	if (urb->status == 0) {
-		xaprc00x_proxy_rcv_cmd((void *)dev->cmd_in_buffer,
+		hss_proxy_rcv_cmd((void *)dev->cmd_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 	}
 }
 
-static void xaprc00x_read_bulk_callback(struct urb *urb)
+static void hss_read_bulk_callback(struct urb *urb)
 {
-	struct usb_xaprc00x *dev = urb->context;
+	struct usb_hss *dev = urb->context;
 
 	switch (urb->status) {
 	/* Success */
 	case 0:
-		xaprc00x_proxy_rcv_data((void *)dev->bulk_in_buffer,
+		hss_proxy_rcv_data((void *)dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 		break;
@@ -274,7 +274,7 @@ static void xaprc00x_read_bulk_callback(struct urb *urb)
 	}
 }
 
-static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
+static int hss_read_cmd(struct usb_hss *dev)
 {
 	/* Start listening for commands */
 	usb_fill_int_urb(dev->cmd_in_urb,
@@ -282,8 +282,8 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 		usb_rcvintpipe(dev->udev,
 			dev->cmd_in_endpointAddr),
 		dev->cmd_in_buffer,
-		sizeof(struct scm_packet),
-		xaprc00x_read_cmd_callback,
+		sizeof(struct hss_packet),
+		hss_read_cmd_callback,
 		dev,
 		dev->cmd_interval);
 	dev->cmd_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
@@ -295,8 +295,8 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 		usb_rcvbulkpipe(dev->udev,
 			dev->bulk_in_endpointAddr),
 		dev->bulk_in_buffer,
-		sizeof(struct scm_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
-		xaprc00x_read_bulk_callback,
+		sizeof(struct hss_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		hss_read_bulk_callback,
 		dev);
 	dev->bulk_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	usb_submit_urb(dev->bulk_in_urb, GFP_ATOMIC);
@@ -305,15 +305,15 @@ static int xaprc00x_read_cmd(struct usb_xaprc00x *dev)
 }
 
 /* Returns the ACK buf and lowers a semaphore to prevent concurrent access */
-void *xaprc00x_get_ack_buf(struct usb_xaprc00x *dev)
+void *hss_get_ack_buf(struct usb_hss *dev)
 {
 	down(&dev->int_out_sem);
 	return dev->cmd_out_buffer;
 }
 
-static void xaprc00x_cmd_out_callback(struct urb *urb)
+static void hss_cmd_out_callback(struct urb *urb)
 {
-	struct usb_xaprc00x *dev = urb->context;
+	struct usb_hss *dev = urb->context;
 
 	if (urb->status != 0)
 		pr_info("Cmd failed status=%d", urb->status);
@@ -321,10 +321,10 @@ static void xaprc00x_cmd_out_callback(struct urb *urb)
 	up(&dev->int_out_sem);
 }
 
-int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
+int hss_cmd_out(void *context, void *msg, int msg_len)
 {
 	int ret;
-	struct usb_xaprc00x *dev = context;
+	struct usb_hss *dev = context;
 
 	usb_fill_int_urb(dev->cmd_out_urb,
 		dev->udev,
@@ -332,7 +332,7 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 			dev->cmd_out_endpointAddr),
 		msg,
 		msg_len,
-		xaprc00x_cmd_out_callback,
+		hss_cmd_out_callback,
 		dev,
 		dev->cmd_interval);
 	dev->cmd_out_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
@@ -342,9 +342,9 @@ int xaprc00x_cmd_out(void *context, void *msg, int msg_len)
 	return ret;
 }
 
-static void xaprc00x_bulk_out_callback(struct urb *urb)
+static void hss_bulk_out_callback(struct urb *urb)
 {
-	struct usb_xaprc00x *dev = urb->context;
+	struct usb_hss *dev = urb->context;
 
 	if (urb->status != 0)
 		pr_info("Bulk failed status=%d",
@@ -352,10 +352,10 @@ static void xaprc00x_bulk_out_callback(struct urb *urb)
 	up(&dev->bulk_out_sem);
 }
 
-int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
+int hss_bulk_out(void *context, void *msg, int msg_len)
 {
 	int ret = -1;
-	struct usb_xaprc00x *dev = context;
+	struct usb_hss *dev = context;
 
 	/* Protect over-copying */
 	if (msg_len > XAPRC00X_BULK_OUT_BUF_SIZE)
@@ -371,7 +371,7 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
 			dev->bulk_out_endpointAddr),
 		dev->bulk_out_buffer,
 		msg_len,
-		xaprc00x_bulk_out_callback,
+		hss_bulk_out_callback,
 		dev);
 
 	ret = usb_submit_urb(dev->bulk_out_urb, GFP_ATOMIC);
@@ -384,9 +384,9 @@ int xaprc00x_bulk_out(void *context, void *msg, int msg_len)
 	return (ret == 0) ? msg_len : ret;
 }
 
-static void xaprc00x_driver_disconnect(struct usb_interface *interface)
+static void hss_driver_disconnect(struct usb_interface *interface)
 {
-	struct usb_xaprc00x *dev;
+	struct usb_hss *dev;
 
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
@@ -395,47 +395,47 @@ static void xaprc00x_driver_disconnect(struct usb_interface *interface)
 	dev->interface = NULL;
 
 	/* decrement our usage count */
-	kref_put(&dev->kref, xaprc00x_driver_delete);
+	kref_put(&dev->kref, hss_driver_delete);
 
-	xaprc00x_proxy_destroy(dev->proxy_context);
+	hss_proxy_destroy(dev->proxy_context);
 
-	dev_info(&interface->dev, "SCM Driver now disconnected.");
+	dev_info(&interface->dev, "HSS Driver now disconnected.");
 }
 
 /* Stop communicating when the host suspends */
-static int xaprc00x_driver_suspend(struct usb_interface *intf,
+static int hss_driver_suspend(struct usb_interface *intf,
 	pm_message_t message)
 {
 	return 0;
 }
 
-static int xaprc00x_driver_resume(struct usb_interface *intf)
+static int hss_driver_resume(struct usb_interface *intf)
 {
 	return 0;
 }
 
-static int xaprc00x_driver_pre_reset(struct usb_interface *intf)
+static int hss_driver_pre_reset(struct usb_interface *intf)
 {
 	return 0;
 }
 
-static int xaprc00x_driver_post_reset(struct usb_interface *intf)
+static int hss_driver_post_reset(struct usb_interface *intf)
 {
 	return 0;
 }
 
-static struct usb_driver xaprc00x_driver = {
-	.name =		"xaprc00x",
-	.probe =	xaprc00x_driver_probe,
-	.disconnect =	xaprc00x_driver_disconnect,
-	.suspend =	xaprc00x_driver_suspend,
-	.resume =	xaprc00x_driver_resume,
-	.pre_reset =	xaprc00x_driver_pre_reset,
-	.post_reset =	xaprc00x_driver_post_reset,
-	.id_table =	xaprc00x_device_table,
+static struct usb_driver hss_driver = {
+	.name =		"hss",
+	.probe =	hss_driver_probe,
+	.disconnect =	hss_driver_disconnect,
+	.suspend =	hss_driver_suspend,
+	.resume =	hss_driver_resume,
+	.pre_reset =	hss_driver_pre_reset,
+	.post_reset =	hss_driver_post_reset,
+	.id_table =	hss_device_table,
 	.supports_autosuspend = 1,
 };
 
-module_usb_driver(xaprc00x_driver);
+module_usb_driver(hss_driver);
 
 MODULE_LICENSE("GPL v2");
