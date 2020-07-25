@@ -1,0 +1,141 @@
+diff --git a/include/linux/hss.h b/include/linux/hss.h
+new file mode 100644
+index 000000000000..ebc45290f12b
+--- /dev/null
++++ b/include/linux/hss.h
+@@ -0,0 +1,111 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/**
++ * @file hss.h
++ * @brief HSS structure definitions
++ */
++#ifndef HSS_H
++#define HSS_H
++
++#include <linux/kernel.h>
++
++enum __attribute__ ((__packed__)) hss_opcode {
++	HSS_OP_OPEN	= cpu_to_le16(0x00),
++	HSS_OP_CONNECT	= cpu_to_le16(0x01),
++	HSS_OP_SHUTDOWN	= cpu_to_le16(0x02),
++	HSS_OP_TRANSMIT	= cpu_to_le16(0x03),
++	HSS_OP_ACK	= cpu_to_le16(0x04),
++	HSS_OP_ACKDATA	= cpu_to_le16(0x05),
++	HSS_OP_CLOSE	= cpu_to_le16(0x06),
++	HSS_OP_MAX	= cpu_to_le16(0xFFFF)
++};
++
++enum __attribute__ ((__packed__)) hss_family {
++	HSS_FAM_IP	= cpu_to_le16(0x01),
++	HSS_FAM_IP6	= cpu_to_le16(0x02),
++	HSS_FAM_MAX	= cpu_to_le16(0xFFFF)
++};
++
++enum __attribute__ ((__packed__)) hss_proto {
++	HSS_PROTO_TCP	= cpu_to_le16(0x01),
++	HSS_PROTO_UDP	= cpu_to_le16(0x02),
++	HSS_PROTO_MAX	= cpu_to_le16(0xFFFF)
++};
++
++enum __attribute__ ((__packed__)) hss_type {
++	HSS_TYPE_STREAM	= 0x01,
++	HSS_TYPE_DGRAM	= 0x02,
++	HSS_TYPE_MAX	= 0xFF
++};
++
++enum __attribute__ ((__packed__)) hss_error {
++	HSS_E_SUCCESS		= 0x00,
++	HSS_E_HOSTERR		= 0x01,
++	HSS_E_INVAL		= 0x02,
++	HSS_E_CONNREFUSED	= 0x03,
++	HSS_E_PROTONOSUPPORT	= 0x04,
++	HSS_E_NETUNREACH	= 0x05,
++	HSS_E_TIMEDOUT		= 0x06,
++	HSS_E_MISMATCH		= 0x07,
++	HSS_E_NOTCONN		= 0x08,
++	HSS_E_MAX		= 0xFF
++};
++
++struct hss_packet_hdr {
++	enum hss_opcode	opcode;
++	__le16		msg_id;
++	__le32		sock_id;
++	__le32		payload_len;
++};
++
++struct hss_payload_data {
++	__u32 payloadLen;
++	unsigned char data[];
++};
++
++struct hss_payload_open {
++	__le32		handle;
++	enum hss_family	addr_family;
++	enum hss_proto	protocol;
++	enum hss_type	type;
++};
++
++struct hss_payload_ack {
++	enum hss_opcode		orig_opcode;
++	enum hss_error		code;
++	union {
++		char	empty[0];
++	};
++};
++
++struct hss_payload_connect_ip6 {
++	__le32		flow_info;
++	__le32		scope_id;
++	char		ip_addr[16];
++};
++
++struct hss_payload_connect_ip4 {
++	__be32		ip_addr;
++};
++
++union hss_payload_connect_ip_addr {
++	struct hss_payload_connect_ip6 ip6;
++	struct hss_payload_connect_ip4 ip4;
++};
++
++struct hss_payload_connect_ip {
++	enum hss_family	family;
++	__u8					resvd;
++	__le16					port;
++	union hss_payload_connect_ip_addr	addr;
++};
++
++struct hss_packet {
++	struct hss_packet_hdr	hdr;
++	union {
++		unsigned char hss_payload_none[0];
++		struct hss_payload_open open;
++		struct hss_payload_connect_ip connect;
++		struct hss_payload_ack ack;
++	};
++};
++#endif
+diff --git a/include/net/hss.h b/include/net/hss.h
+new file mode 100644
+index 000000000000..236fcc02107d
+--- /dev/null
++++ b/include/net/hss.h
+@@ -0,0 +1,18 @@
++#include <linux/hss.h>
++
++struct hss_usb_descriptor {
++	void (*hss_cmd)(char*, size_t, void*);
++	void (*hss_transfer)(struct hss_packet_hdr *hdr, char*, size_t, void*);
++	void (*hss_shutdown)(void*);
++};
++
++
++int hss_sock_handle_host_side_shutdown(int sock_id, int how);
++void hss_sock_connect_ack(int sock_id, struct hss_packet *packet);
++void hss_sock_transmit(int sock_id, void *data, int len);
++void hss_sock_open_ack(int sock_id, struct hss_packet *ack);
++int hss_register(void *proxy_context);
++void *hss_proxy_init(void *usb_context, struct hss_usb_descriptor *intf);
++
++void hss_proxy_rcv_data(struct hss_packet *packet, size_t len, void *proxy_ctx);
++void hss_proxy_rcv_cmd(struct hss_packet *packet, size_t len, void *proxy_ctx);

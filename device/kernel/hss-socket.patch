@@ -1,0 +1,35 @@
+diff --git a/include/linux/socket.h b/include/linux/socket.h
+index d3bfcd73c744..e18473bd910c 100644
+--- a/include/linux/socket.h
++++ b/include/linux/socket.h
+@@ -209,7 +209,8 @@ struct ucred {
+ 				 * reuses AF_INET address family
+ 				 */
+ #define AF_XDP		44	/* XDP sockets			*/
+-#define AF_MAX		45	/* For now.. */
++#define AF_HSS		45	/* HSS sockets			*/
++#define AF_MAX		46	/* For now.. */
+ 
+ /* Protocol families, same as address families. */
+ #define PF_UNSPEC	AF_UNSPEC
+@@ -259,6 +260,7 @@ struct ucred {
+ #define PF_QIPCRTR	AF_QIPCRTR
+ #define PF_SMC		AF_SMC
+ #define PF_XDP		AF_XDP
++#define PF_HSS		AF_HSS
+ #define PF_MAX		AF_MAX
+ 
+ /* Maximum queue length specifiable by listen.  */
+diff --git a/net/core/sock.c b/net/core/sock.c
+index ac78a570e43a..722b63b80912 100644
+--- a/net/core/sock.c
++++ b/net/core/sock.c
+@@ -223,7 +223,7 @@ static struct lock_class_key af_family_kern_slock_keys[AF_MAX];
+   x "AF_IEEE802154",	x "AF_CAIF"	,	x "AF_ALG"      , \
+   x "AF_NFC"   ,	x "AF_VSOCK"    ,	x "AF_KCM"      , \
+   x "AF_QIPCRTR",	x "AF_SMC"	,	x "AF_XDP"	, \
+-  x "AF_MAX"
++  x "AF_HSS",		x "AF_MAX"
+ 
+ static const char *const af_family_key_strings[AF_MAX+1] = {
+ 	_sock_locks("sk_lock-")
