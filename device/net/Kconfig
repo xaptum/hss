@@ -1,0 +1,6 @@
+#
+# HSS Network Support
+#
+
+config HSS_SOCKET
+	bool "HSS Network Device Support"
