@@ -15,7 +15,11 @@
 #include <net/sock.h>
 #include <net/hss.h>
 
+/* NOTE: This file is located in drivers/usb/gadget/ which is part of the include path on kernel builds */
+#include <u_f.h>
+
 #include "u_hss.h"
+
 
 /*
  * The Socket Control Model is protocol for a USB device to manage and use
