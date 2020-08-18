@@ -1,0 +1,25 @@
+#!/bin/bash
+
+PKGNAME=hss
+VER=0.1
+USRDIR=/usr/src/$PKGNAME/$VER
+
+
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
+fi
+
+if [[ $(dkms status | grep $PKGNAME,\ $VER) ]]
+then
+    echo "ERROR: $PKGNAME $VER DKMS appears to be installed on this system. run \`dkms remove $PKGNAME/$VER --all\` to remove"
+    exit
+fi
+
+mkdir -p /usr/src/$PKGNAME-$VER/
+cp src/* /usr/src/$PKGNAME-$VER/
+dkms add -m $PKGNAME -v $VER
+dkms build -m $PKGNAME -v $VER
+dkms install -m $PKGNAME -v $VER
+
+echo "Reached end of block"
