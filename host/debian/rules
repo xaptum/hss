@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+DKMS_DIR := debian/tmp/usr/src
+
+%:
+	dh $@ --with dkms
+
+override_dh_auto_build:
+
+override_dh_auto_clean:
+
+override_dh_install:
+	dh_install --fail-missing
+
+override_dh_auto_install:
+	mkdir -p $(DKMS_DIR)/hss-$(DEB_VERSION_UPSTREAM)/
+	install -D -m 644 src/*.c src/*.h src/Kbuild src/Kconfig src/Makefile $(DKMS_DIR)/hss-$(DEB_VERSION_UPSTREAM)/
+
+override_dh_dkms:
+	dh_dkms -V $(DEB_VERSION_UPSTREAM)
