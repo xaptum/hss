@@ -65,7 +65,7 @@ static void hss_send_int_msg_complete(struct usb_ep *ep, struct usb_request *req
 static int hss_read_out_cmd(struct f_hss *hss_inst);
 static int hss_read_out_bulk(struct f_hss *hss_inst);
 static void hss_send_int_msg(char *data, size_t len, void *hss_inst);
-static void hss_send_bulk_msg(struct hss_packet_hdr *hdr, char *data, size_t len,
+static void hss_send_bulk_msg(char *hdr, size_t hdr_len, char *data, size_t len,
 	void *hss_inst);
 
 
@@ -690,22 +690,43 @@ static void hss_send_bulk_msg_complete(struct usb_ep *ep, struct usb_request *re
 	usb_ep_free_request(ep, req);
 }
 
-static void hss_send_bulk_msg(struct hss_packet_hdr *hdr, char *data, size_t len,
-	void *inst)
+/**
+ * hss_send_bulk_msg - Send message over bulk channel
+ *
+ * @hdr The HSS header buffer
+ * @hdr_len The length of the hdr buffer
+ * @data The remaining portion (optional, may be NULL)
+ * @data_len The length of @data (ignored if @data is NULL)
+ * @inst The devie driver instance
+ *
+ * Sends hdr immediately followed by data over the bulk channel.
+ * If the header and payload are at different addresses both @hdr and @data
+ * may be used instead of an unnecessary allocation and copy. But if both are
+ * allocated in a contiguous buffer the same effect can be reached by putting
+ * everything in @hdr and passing @data = NULL
+ *
+ * Returns: 0 if all endpoints were matched, -ENXIO otherwise
+ *
+ */
+static void hss_send_bulk_msg(char *hdr, size_t hdr_len, char *data,
+	size_t data_len, void *inst)
 {
 	struct f_hss *hss_inst = (struct f_hss*) inst;
 	struct usb_request *in_req;
 	void *usb_data;
-	int total_packet_len = sizeof(*hdr) + len;
+	int total_len;
+
+	total_len = hdr_len + (data ? data_len : 0);
 
 	in_req = usb_ep_alloc_request(hss_inst->bulk_in, GFP_KERNEL);
-	in_req->length = total_packet_len;
+	in_req->length = total_len;
 	in_req->complete = hss_send_bulk_msg_complete;
 
-	usb_data = kmalloc(total_packet_len, GFP_KERNEL);
+	usb_data = kmalloc(total_len, GFP_KERNEL);
 	in_req->buf = usb_data;
-	memcpy(in_req->buf, hdr, sizeof(*hdr));
-	memcpy(in_req->buf + sizeof(*hdr), data, len);
+	memcpy(in_req->buf, hdr, hdr_len);
+	if (data)
+		memcpy(((char *)in_req->buf) + hdr_len, data, data_len);
 
 	usb_ep_queue(hss_inst->bulk_in, in_req, GFP_ATOMIC);
 }

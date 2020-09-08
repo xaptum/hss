@@ -125,7 +125,7 @@ index 000000000000..236fcc02107d
 +
 +struct hss_usb_descriptor {
 +	void (*hss_cmd)(char*, size_t, void*);
-+	void (*hss_transfer)(struct hss_packet_hdr *hdr, char*, size_t, void*);
++	void (*hss_transfer)(char *hdr, size_t hdr_len, char*, size_t, void*);
 +	void (*hss_shutdown)(void*);
 +};
 +
@@ -137,5 +137,5 @@ index 000000000000..236fcc02107d
 +int hss_register(void *proxy_context);
 +void *hss_proxy_init(void *usb_context, struct hss_usb_descriptor *intf);
 +
-+void hss_proxy_rcv_data(struct hss_packet *packet, size_t len, void *proxy_ctx);
-+void hss_proxy_rcv_cmd(struct hss_packet *packet, size_t len, void *proxy_ctx);
++void hss_proxy_rcv_data(char *buf, size_t len, void *proxy_ctx);
++void hss_proxy_rcv_cmd(char *buf, size_t len, void *proxy_ctx);

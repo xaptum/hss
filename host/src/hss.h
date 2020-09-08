@@ -8,6 +8,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <net/sock.h>
 #include <linux/net.h>
 
 /* Define the length of fixed data on each packet type. Useful for knowing where
@@ -246,12 +247,12 @@ static void hss_packet_assign_ip6(struct hss_packet *packet,
 static inline void hss_packet_fill_connect(struct hss_packet *packet,
 	u16 msg_id, u32 sock_id, struct sockaddr *addr)
 {
-	hss_fill_packet(packet, HSS_OP_CONNECT, sock_id);
+	hss_fill_packet(packet, HSS_OP_CONNECT, sock_id, msg_id);
 
 	if (addr->sa_family == AF_INET)
-		hss_proxy_assign_ip4(packet, addr);
+		hss_packet_assign_ip4(packet, addr);
 	else if (addr->sa_family == AF_INET6)
-		hss_proxy_assign_ip6(packet, addr);
+		hss_packet_assign_ip6(packet, addr);
 }
 
 /**
