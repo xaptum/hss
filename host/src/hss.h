@@ -9,6 +9,16 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 
+/* Define the length of fixed data on each packet type. Useful for knowing where
+ * to write arbitrary payloads. All values are taken from section 3.3.5 of the
+ * HSS specification. These values should never be used for memory operations on
+ * struct hss_packet. */
+#define HSS_HDR_LEN 12
+#define HSS_FIXED_LEN_CLOSE HSS_HDR_LEN
+#define HSS_FIXED_LEN_TRANSMIT HSS_HDR_LEN
+#define HSS_FIXED_LEN_ACK HSS_HDR_LEN+3
+#define HSS_FIXED_LEN_REPLY HSS_FIXED_LEN_ACK
+
 enum __attribute__ ((__packed__)) hss_opcode {
 	HSS_OP_OPEN	= 0x00,
 	HSS_OP_CONNECT	= 0x01,
@@ -297,10 +307,129 @@ static inline struct hss_payload_open *hss_get_payload_open(struct hss_packet *p
 {
     struct hss_payload_open *open = &packet->open;
 
-    out->handle = le32_to_cpu(open->handle);
-    out->protocol = le16_to_cpu(open->protocol);
-    out->addr_family = le16_to_cpu(open->addr_family);
+    out->handle = open->handle;
+    out->protocol = open->protocol;
+    out->addr_family = open->addr_family;
     out->type = open->type;
     return open;
 }
+
+/**
+ * _hss_packet_to_buf - Convert fixed packet fields to buffer
+ *
+ * @dst The buffer to write to
+ * @src The packet field to read from
+ * @offset The buffer offset to write to (will be incremented)
+ * @conv_end Whether to convert endianness to little-endian
+ *
+ * Converts fixed fields whos width are known at compile time
+ * from the packet to the buf. For use by hss_packet_to_buf
+ *
+ * Return: None
+ */
+#define _hss_packet_to_buf(dst,src,offset,conv_end)			\
+	do {								\
+		char *_src = (char *)src;				\
+		__le16 _src16;						\
+		__le32 _src32;						\
+		__le64 _src64;						\
+		if (conv_end && sizeof(*src) == 2) {			\
+			_src16 = cpu_to_le16(*src);			\
+			_src = (char *) &_src16;			\
+		} else if (conv_end && sizeof(*src) == 4) {		\
+			_src32 = cpu_to_le32(*src);			\
+			_src = (char *) &_src32;			\
+		} else if (conv_end && sizeof(*src) == 8) {		\
+			_src64 = cpu_to_le64(*src);			\
+			_src = (char *) &_src64;			\
+		}							\
+		memcpy(((char*)dst) + offset, _src, sizeof(*src));	\
+		offset += sizeof(*src);					\
+	} while (0)
+
+/**
+ * _hss_packet_from_buf - Extract fixed fields from buffer into packet
+ *
+ * @src The buffer to read from
+ * @src The packet field to write to
+ * @cnt The buffer offset to read from (will be incremented)
+ * @conv_end Whether to convert endianness from little-endian
+ *
+ * Converts fixed fields whos width are known at compile time
+ * from the buffer to the packet struct. For use by hss_packet_from_buf
+ *
+ * Return: None
+ */
+#define _hss_packet_from_buf(src,dst,offset,conv_end)			\
+	do {								\
+		memcpy(dst, ((char*)src) + offset, sizeof(*dst));	\
+		offset += sizeof(*dst);					\
+		if (conv_end && sizeof(*dst) == 2)			\
+			*dst = le16_to_cpu(*dst);			\
+		if (conv_end && sizeof(*dst) == 4)			\
+			*dst = le32_to_cpu(*dst);			\
+		if (conv_end && sizeof(*dst) == 8)			\
+			*dst = le64_to_cpu(*dst);			\
+	} while (0)
+
+/**
+ * hss_packet_##dir##_buf - Serially steps through an HSS packet performing the descired operation
+ *
+ * @pkt An alligned HSS packet
+ * @buf An unalligned buffer for transmission
+ * @payload_fields Whether to copy fixed payload fields or just the header
+ *
+ * Goes field by field through the packet structure either reading from or writing to the field.
+ * The other target is an unalligned HSS buffer that is has either been received or is about to be sent
+ * over USB.
+ *
+ * Return: The number of bytes operated upon in the buffer.
+ */
+#define HSS_COPY_FIELDS 1
+#define HSS_COPY_HDR 0
+#define _CREATE_HSS_PACKET_DIR(dir) \
+	static inline size_t hss_packet_##dir##_buf(struct hss_packet *pkt, char *buf, int payload_fields) \
+	{ \
+		size_t cnt = 0; \
+ \
+		_hss_packet_##dir##_buf(buf, &pkt->hdr.opcode, cnt, 1); \
+		_hss_packet_##dir##_buf(buf, &pkt->hdr.msg_id, cnt, 1); \
+		_hss_packet_##dir##_buf(buf, &pkt->hdr.sock_id, cnt, 1); \
+		_hss_packet_##dir##_buf(buf, &pkt->hdr.payload_len, cnt, 1); \
+ \
+		if (payload_fields) { \
+			switch (pkt->hdr.opcode) { \
+				case HSS_OP_OPEN: \
+					_hss_packet_##dir##_buf(buf, &pkt->open.handle, cnt, 1); \
+					_hss_packet_##dir##_buf(buf, &pkt->open.addr_family, cnt, 1); \
+					_hss_packet_##dir##_buf(buf, &pkt->open.protocol, cnt, 1); \
+					_hss_packet_##dir##_buf(buf, &pkt->open.type, cnt, 1); \
+					break; \
+				case HSS_OP_CONNECT: \
+						_hss_packet_##dir##_buf(buf, &pkt->connect.family, cnt, 1); \
+						_hss_packet_##dir##_buf(buf, &pkt->connect.port, cnt, 1); \
+						if (pkt->connect.family == HSS_FAM_IP) \
+							_hss_packet_##dir##_buf(buf, &pkt->connect.addr.ip4.ip_addr, cnt, 0); \
+						else if (pkt->connect.family == HSS_FAM_IP6) { \
+							_hss_packet_##dir##_buf(buf, &pkt->connect.addr.ip6.flow_info, cnt, 0); \
+							_hss_packet_##dir##_buf(buf, &pkt->connect.addr.ip6.scope_id, cnt, 0); \
+							_hss_packet_##dir##_buf(buf, pkt->connect.addr.ip6.ip_addr, cnt, 0); \
+						} \
+					break; \
+				case HSS_OP_ACK: \
+					_hss_packet_##dir##_buf(buf, &pkt->ack.orig_opcode, cnt, 1); \
+					_hss_packet_##dir##_buf(buf, &pkt->ack.code, cnt, 1); \
+					break; \
+				case HSS_OP_ACKDATA: \
+				case HSS_OP_CLOSE: \
+				case HSS_OP_TRANSMIT: \
+				case HSS_OP_SHUTDOWN: \
+				default: \
+					break; \
+			} \
+		} \
+		return cnt; \
+	}
+_CREATE_HSS_PACKET_DIR(to); /* hss_packet_to_buf */
+_CREATE_HSS_PACKET_DIR(from); /* hss_packet_from_buf */
 #endif
