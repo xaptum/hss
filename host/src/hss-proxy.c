@@ -31,9 +31,8 @@ struct hss_proxy_context {
 
 struct work_data_t {
 	struct work_struct work;
-	int packet_len;
 	struct hss_proxy_context *context;
-	unsigned char data[];
+	struct hss_packet data;
 };
 
 struct listen_data {
@@ -282,7 +281,6 @@ void hss_proxy_process_connect(struct hss_packet *packet, u16 dev,
  * Helper funciton to form a CLOSE packet for a given socket and send it
  *
  * @sock_id The ID of the sock to close
- * @msg Memory for the outgoing packet
  * @usb_context A pointer to the USB context
  *
  * Note: Close packets have no payload so the send size will always be
@@ -290,17 +288,16 @@ void hss_proxy_process_connect(struct hss_packet *packet, u16 dev,
  */
 static void hss_send_close(
 	int sock_id,
-	struct hss_packet *msg,
 	void *usb_context)
 {
-	struct hss_packet *proxy_cmd_buf;
-	int hss_msg_len = sizeof(struct hss_packet);
+	struct hss_packet close_packet;
+	char *proxy_cmd_buf;
 
 	/* Send a close to the device */
-	hss_packet_fill_close(msg, sock_id, atomic_inc_return(&g_msg_id));
+	hss_packet_fill_close(&close_packet, sock_id, atomic_inc_return(&g_msg_id));
 	proxy_cmd_buf = hss_get_ack_buf(usb_context);
-	memcpy(proxy_cmd_buf, msg, hss_msg_len);
-	hss_cmd_out(usb_context, proxy_cmd_buf, hss_msg_len);
+	hss_packet_to_buf(&close_packet, proxy_cmd_buf, HSS_COPY_FIELDS);
+	hss_cmd_out(usb_context, proxy_cmd_buf, HSS_FIXED_LEN_CLOSE);
 }
 
 /**
@@ -322,9 +319,12 @@ static void hss_send_transmit(
 	void *usb_context)
 {
 	int bulk_ret;
+	struct hss_packet pkt;
 	int packet_len = payload_len + sizeof(struct hss_packet_hdr);
 
-	hss_packet_fill_transmit(msg, sock_id, NULL, payload_len, atomic_inc_return(&g_msg_id));
+	hss_packet_fill_transmit(&pkt, sock_id, NULL, payload_len, atomic_inc_return(&g_msg_id));
+	hss_packet_to_buf(&pkt, (char *)msg, HSS_COPY_FIELDS);
+
 	bulk_ret = hss_bulk_out(usb_context, msg, packet_len);
 
 	/* Bulk_out should only return send length requested */
@@ -338,16 +338,17 @@ int hss_proxy_listen_socket(void *param)
 {
 	struct listen_data *ld = param;
 	int max_msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
-	int max_read_len = max_msg_len - sizeof(struct hss_packet_hdr);
+	int max_read_len = max_msg_len - HSS_FIXED_LEN_TRANSMIT;
 	struct hss_packet *msg = kzalloc(max_msg_len, GFP_KERNEL);
 	int sock_read_len;
 	void *usb_context = ld->context->usb_context;
 
 	while (1) {
-		/* Read data from our socket */
+		/* Read data from our socket. To save on excessive memory copies we will write
+		 * to the location it will be on the outgoing packet. */
 		sock_read_len = hss_socket_read(
 			ld->sock_id,
-			msg->hss_payload_none,
+			(char *)msg + HSS_FIXED_LEN_TRANSMIT,
 			max_read_len,
 			0,
 			ld->context->socket_table);
@@ -356,7 +357,6 @@ int hss_proxy_listen_socket(void *param)
 		if (sock_read_len <= 0) {
 			hss_send_close(
 				ld->sock_id,
-				msg,
 				usb_context);
 			break;
 		}
@@ -415,12 +415,23 @@ void hss_proxy_rcv_cmd(struct hss_packet *packet,
 	struct hss_proxy_context *proxy_ctx =
 		(struct hss_proxy_context *) context;
 
-	newwork = kmalloc(sizeof(struct work_data_t) + packet_len, GFP_ATOMIC);
+	/* Allocate for a work_data_t that can fit the largest possible CMD packet */
+	newwork = kmalloc(sizeof(struct work_data_t) + 64 - HSS_HDR_LEN, GFP_ATOMIC);
 
 	newwork->context = proxy_ctx;
-	newwork->packet_len = packet_len;
 
-	memcpy(newwork->data, packet, packet_len);
+	/* Copy the header so the entire packet can be evaluated */
+	if (packet_len < HSS_HDR_LEN)
+		return;
+	hss_packet_from_buf(&newwork->data, (char *)packet, HSS_COPY_HDR);
+
+	/* Make sure the length sent is correct and copy any given payload */
+	if (packet_len != newwork->data.hdr.payload_len + HSS_HDR_LEN ||
+			newwork->data.hdr.payload_len > 64 - HSS_HDR_LEN)
+		return;
+	else if (newwork->data.hdr.payload_len > 0 )
+		hss_packet_from_buf(&newwork->data, (char *)packet, HSS_COPY_FIELDS);
+
 	INIT_WORK(&newwork->work, hss_proxy_process_cmd);
 	queue_work(proxy_ctx->proxy_wq, &newwork->work);
 }
@@ -499,6 +510,29 @@ static struct hss_packet *hss_proxy_run_host_cmd(
 	return ack;
 }
 
+
+static void hss_proxy_send_ack(struct hss_packet *packet, struct hss_proxy_context *proxy_context)
+{
+	char *proxy_cmd_buf;
+
+	proxy_cmd_buf =
+		hss_get_ack_buf(proxy_context->usb_context);
+
+	/* Copy the fixed part of the ACK */
+	hss_packet_to_buf(packet, proxy_cmd_buf, HSS_COPY_FIELDS);
+
+	/* Copy the arbitrary payload if applicable */
+	if (packet->hdr.payload_len + HSS_HDR_LEN > HSS_FIXED_LEN_ACK)
+		memcpy(
+				proxy_cmd_buf + HSS_FIXED_LEN_ACK,
+				&packet->hss_payload_none,
+				packet->hdr.payload_len - HSS_FIXED_LEN_ACK + HSS_HDR_LEN);
+
+	/* Send the ACK over USB */
+	hss_cmd_out(proxy_context->usb_context, proxy_cmd_buf,
+		HSS_HDR_LEN + packet->hdr.payload_len);
+}
+
 /**
  * hss_proxy_process_cmd - Bottom half of hss_proxy_rcv_cmd
  *
@@ -513,40 +547,19 @@ static void hss_proxy_process_cmd(struct work_struct *work)
 	struct work_data_t *work_data;
 	struct hss_proxy_context *proxy_context;
 	struct hss_packet *packet;
-	int packet_len;
 	struct hss_packet *ack;
-	struct hss_packet *proxy_cmd_buf;
-	int expected_packet_len;
 
 	work_data = (struct work_data_t *) work;
 	proxy_context = work_data->context;
 	packet = (struct hss_packet *)&work_data->data;
-	packet_len = work_data->packet_len;
-
-	/* Sanity check the length against the packet definition */
-	expected_packet_len =
-		packet->hdr.payload_len +
-		sizeof(struct hss_packet_hdr);
-	if (expected_packet_len > packet_len) {
-		pr_err("Expected packet size %db, got %db",
-			expected_packet_len, packet_len);
-		goto exit;
-	}
 
 	ack = hss_proxy_run_host_cmd(packet, proxy_context);
 
 	if (ack) {
-		proxy_cmd_buf =
-			hss_get_ack_buf(proxy_context->usb_context);
-		memcpy(
-			proxy_cmd_buf,
-			ack,
-			(sizeof(*ack) + ack->hdr.payload_len));
-		hss_cmd_out(proxy_context->usb_context, proxy_cmd_buf,
-			sizeof(*ack)+ack->hdr.payload_len);
+		hss_proxy_send_ack(ack, proxy_context);
 		kfree(ack);
 	}
-exit:
+
 	kfree(work);
 }
 
@@ -634,9 +647,9 @@ static void hss_proxy_process_data(struct work_struct *work)
 	int packet_len;
 	int circ_cnt;
 	struct hss_packet *ack = NULL;
-	struct hss_packet_hdr hdr;
+	struct hss_packet pkt;
+	char cont_hdr_space[HSS_HDR_LEN];
 	struct hss_ring_section section;
-	int hdr_len = sizeof(struct hss_packet_hdr);
 
 	/* Unpack the work data */
 	proxy_context = ((struct work_data_t *) work)->context;
@@ -646,23 +659,27 @@ static void hss_proxy_process_data(struct work_struct *work)
 	section = hss_consumer_section(
 		ring,
 		READ_CACHE_SIZE,
-		hdr_len);
+		HSS_HDR_LEN);
 
 	/* If theres not a headers worth of data in the buffer */
 	if (section.start == -1)
 		goto exit;
 
 	/* Copy the header to a contiguous buffer */
-	memcpy(&hdr, ring->buf + section.start, section.len);
-	memcpy(((char *) &hdr) + section.len, ring->buf, section.wrap);
+	memcpy(cont_hdr_space, ring->buf + section.start, section.len);
+	memcpy(((char *) cont_hdr_space) + section.len, ring->buf, section.wrap);
 
-	/* If there entire payload hasn't arrived yet */
+	/* Convert the contiguous buffer to a readable packet */
+	hss_packet_from_buf(&pkt, cont_hdr_space, HSS_COPY_HDR);
+
+	/* Compare the amount of data ready to be read against the stated length of the packet */
 	circ_cnt = CIRC_CNT(
 		READ_ONCE(ring->head),
 		READ_ONCE(ring->tail),
 		READ_CACHE_SIZE);
-	packet_len = hss_get_packet_len((struct hss_packet *)&hdr);
+	packet_len = hss_get_packet_len(&pkt);
 
+	/* Do not continue if the entire payload hasn't arrived */
 	if (packet_len > circ_cnt)
 		goto exit;
 
@@ -670,17 +687,11 @@ static void hss_proxy_process_data(struct work_struct *work)
 	hss_ring_consume(ring, READ_CACHE_SIZE, section);
 
 	/* Run the transmit packet */
-	ack = hss_proxy_run_in_data(&hdr, ring, proxy_context);
+	ack = hss_proxy_run_in_data(&pkt.hdr, ring, proxy_context);
 
 	/* Send an ACK if applicable */
 	if (ack) {
-		struct hss_packet *proxy_cmd_buf;
-
-		proxy_cmd_buf =
-			hss_get_ack_buf(proxy_context->usb_context);
-		memcpy(proxy_cmd_buf, ack, sizeof(*ack));
-		hss_cmd_out(proxy_context->usb_context, ack,
-			sizeof(*ack)+ack->hdr.payload_len);
+		hss_proxy_send_ack(ack, proxy_context);
 		kfree(ack);
 	}
 exit:
