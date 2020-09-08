@@ -63,9 +63,9 @@ enum __attribute__ ((__packed__)) hss_error {
 
 struct hss_packet_hdr {
 	enum hss_opcode	opcode;
-	__le16		msg_id;
-	__le32		sock_id;
-	__le32		payload_len;
+	__u16		msg_id;
+	__u32		sock_id;
+	__u32		payload_len;
 };
 
 struct hss_payload_data {
@@ -74,7 +74,7 @@ struct hss_payload_data {
 };
 
 struct hss_payload_open {
-	__le32		handle;
+	__u32		handle;
 	enum hss_family	addr_family;
 	enum hss_proto	protocol;
 	enum hss_type	type;
@@ -89,8 +89,8 @@ struct hss_payload_ack {
 };
 
 struct hss_payload_connect_ip6 {
-	__le32		flow_info;
-	__le32		scope_id;
+	__u32		flow_info;
+	__u32		scope_id;
 	char		ip_addr[16];
 };
 
@@ -105,8 +105,7 @@ union hss_payload_connect_ip_addr {
 
 struct hss_payload_connect_ip {
 	enum hss_family	family;
-	__u8                                    resvd;
-	__le16					port;
+	__u16					port;
 	union hss_payload_connect_ip_addr	addr;
 };
 
@@ -119,14 +118,6 @@ struct hss_packet {
 		struct hss_payload_ack ack;
 	};
 };
-
-
-/* Adds a CPU ordered u32 a little endian unisgned integer */
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define add_cpu_to_le(baseLE, addCPU)  baseLE = cpu_to_le32(le32_to_cpu(baseLE) + addCPU)
-#else
-#define add_cpu_to_le(baseLE, addCPU)  baseLE = baseLE + addCPU
-#endif
 
 /**
  * hss_get_packet_len - Returns the full length of the hss packet,
@@ -149,9 +140,9 @@ static inline int hss_get_packet_len(struct hss_packet *packet)
 static inline void hss_fill_packet(struct hss_packet *packet, u16 opcode,
 	u32 sock_id, u16 msg_id)
 {
-	packet->hdr.msg_id = cpu_to_le16(msg_id);
-	packet->hdr.opcode = cpu_to_le16(opcode);
-	packet->hdr.sock_id = cpu_to_le32(sock_id);
+	packet->hdr.msg_id = msg_id;
+	packet->hdr.opcode = opcode;
+	packet->hdr.sock_id = sock_id;
 }
 
 static inline struct hss_packet *hss_new_packet(int opcode, int sock_id,
@@ -165,7 +156,7 @@ static inline struct hss_packet *hss_new_packet(int opcode, int sock_id,
 
 static inline void hss_fill_payload(struct hss_packet *packet, void *buf, u32 len)
 {
-	packet->hdr.payload_len = cpu_to_le32(len);
+	packet->hdr.payload_len = len;
 	if (buf)
 		memcpy(packet->hss_payload_none, buf, len);
 }
@@ -200,11 +191,11 @@ static inline void hss_packet_fill_noop(struct hss_packet *packet, int len, u16 
 static inline void hss_packet_fill_ack(struct hss_packet_hdr *orig,
 	struct hss_packet *ack)
 {
-	ack->hdr.opcode = cpu_to_le16(HSS_OP_ACK);
-	ack->hdr.msg_id = cpu_to_le16(orig->msg_id);
-    ack->hdr.sock_id = cpu_to_le32(orig->sock_id);
-	ack->hdr.payload_len = cpu_to_le32(3);
-	ack->ack.orig_opcode = cpu_to_le16(orig->opcode);
+	ack->hdr.opcode = HSS_OP_ACK;
+	ack->hdr.msg_id = orig->msg_id;
+	ack->hdr.sock_id = orig->sock_id;
+	ack->hdr.payload_len = HSS_FIXED_LEN_ACK - HSS_HDR_LEN;
+	ack->ack.orig_opcode = orig->opcode;
 }
 
 /**
@@ -221,8 +212,7 @@ static inline void hss_packet_fill_ack_open(struct hss_packet *packet,
 	struct hss_packet *ack, int ret, u32 id)
 {
 	hss_packet_fill_ack(&packet->hdr, ack);
-	add_cpu_to_le(ack->hdr.payload_len, sizeof(ack->ack.empty));
-	ack->hdr.sock_id = cpu_to_le32(id);
+	ack->hdr.sock_id = id;
 	switch (ret) {
 	case 0:
 		ack->ack.code = HSS_E_SUCCESS;
@@ -251,19 +241,19 @@ static inline void hss_packet_fill_ack_connect(struct hss_packet *packet,
 	hss_packet_fill_ack(&packet->hdr, ack);
 	switch (ret) {
 	case 0:
-		ack->ack.code = cpu_to_le32(HSS_E_SUCCESS);
+		ack->ack.code = HSS_E_SUCCESS;
 		break;
 	case -ECONNREFUSED:
-		ack->ack.code = cpu_to_le32(HSS_E_CONNREFUSED);
+		ack->ack.code = HSS_E_CONNREFUSED;
 		break;
 	case -ENETUNREACH:
-		ack->ack.code = cpu_to_le32(HSS_E_NETUNREACH);
+		ack->ack.code = HSS_E_NETUNREACH;
 		break;
 	case -ETIMEDOUT:
-		ack->ack.code = cpu_to_le32(HSS_E_TIMEDOUT);
+		ack->ack.code = HSS_E_TIMEDOUT;
 		break;
 	default:
-		ack->ack.code = cpu_to_le32(HSS_E_HOSTERR);
+		ack->ack.code = HSS_E_HOSTERR;
 		break;
 	}
 }
@@ -271,10 +261,10 @@ static inline void hss_packet_fill_ack_connect(struct hss_packet *packet,
 static inline struct hss_packet_hdr *hss_get_header(struct hss_packet *packet, struct hss_packet_hdr *out) {
     struct hss_packet_hdr *hdr = &packet->hdr;
 
-    out->opcode = le16_to_cpu(hdr->opcode);
-    out->msg_id = le16_to_cpu(hdr->msg_id);
-    out->sock_id = le32_to_cpu(hdr->sock_id);
-    out->payload_len = le32_to_cpu(hdr->payload_len);
+    out->opcode = hdr->opcode;
+    out->msg_id = hdr->msg_id;
+    out->sock_id = hdr->sock_id;
+    out->payload_len = hdr->payload_len;
 
     return hdr;
 }
@@ -283,8 +273,8 @@ static inline struct hss_payload_connect_ip *hss_get_payload_connect(struct hss_
 {
     struct hss_payload_connect_ip *connect = &packet->connect;
 
-    out->family = le16_to_cpu(connect->family);
-    out->port = le16_to_cpu(connect->port);
+    out->family = connect->family;
+    out->port = connect->port;
 
     /* Note: All address fields are passed in network byte order */
     memcpy(&out->addr, &connect->addr,
