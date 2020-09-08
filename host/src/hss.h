@@ -18,6 +18,7 @@
 #define HSS_FIXED_LEN_TRANSMIT HSS_HDR_LEN
 #define HSS_FIXED_LEN_ACK HSS_HDR_LEN+3
 #define HSS_FIXED_LEN_REPLY HSS_FIXED_LEN_ACK
+#define HSS_FIXED_LEN_OPEN HSS_HDR_LEN+9
 
 enum __attribute__ ((__packed__)) hss_opcode {
 	HSS_OP_OPEN	= 0x00,
@@ -164,6 +165,7 @@ static inline void hss_fill_payload(struct hss_packet *packet, void *buf, u32 le
 static inline void hss_packet_fill_close(struct hss_packet *packet, uint32_t sock_id, u16 msg_id)
 {
 	hss_fill_packet(packet, HSS_OP_CLOSE, sock_id, msg_id);
+	packet->hdr.payload_len = 0;
 }
 
 static inline void hss_packet_fill_transmit(struct hss_packet *packet, int sock_id,
@@ -177,6 +179,18 @@ static inline void hss_packet_fill_noop(struct hss_packet *packet, int len, u16 
 {
 	hss_fill_packet(packet, HSS_OP_MAX, 0, msg_id);
 	hss_fill_payload(packet, NULL, len);
+}
+
+static inline void hss_packet_fill_open(struct hss_packet *packet, enum hss_family family,
+	enum hss_proto proto, enum hss_type type, int local_id, u16 msg_id)
+{
+	hss_fill_packet(packet, HSS_OP_OPEN, 0, msg_id);
+
+	packet->hdr.payload_len = HSS_FIXED_LEN_OPEN - HSS_HDR_LEN;
+	packet->open.addr_family = family;
+	packet->open.protocol = proto;
+	packet->open.type = type;
+	packet->open.handle = local_id;
 }
 
 /**
