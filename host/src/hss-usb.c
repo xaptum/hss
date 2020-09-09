@@ -239,7 +239,7 @@ static void hss_read_cmd_callback(struct urb *urb)
 	struct usb_hss *dev = urb->context;
 
 	if (urb->status == 0) {
-		hss_proxy_rcv_cmd((void *)dev->cmd_in_buffer,
+		hss_proxy_rcv_cmd((char *)dev->cmd_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 	}
@@ -252,7 +252,7 @@ static void hss_read_bulk_callback(struct urb *urb)
 	switch (urb->status) {
 	/* Success */
 	case 0:
-		hss_proxy_rcv_data((void *)dev->bulk_in_buffer,
+		hss_proxy_rcv_data((char *)dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 		break;

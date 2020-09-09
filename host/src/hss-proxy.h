@@ -14,7 +14,7 @@
 
 void *hss_proxy_init(void *context);
 
-void hss_proxy_rcv_cmd(struct hss_packet *packet,
+void hss_proxy_rcv_cmd(char *packet,
 	int packet_len, void *context);
 
 int hss_proxy_rcv_data(void *data, int len, void *context);

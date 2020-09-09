@@ -408,7 +408,7 @@ void hss_proxy_process_close(struct hss_packet *packet, u16 dev,
  * Packet can be modified or freed after this function returns.
  * This function may be called in an atomic context.
  */
-void hss_proxy_rcv_cmd(struct hss_packet *packet,
+void hss_proxy_rcv_cmd(char *packet,
 	int packet_len, void *context)
 {
 	struct work_data_t *newwork;
@@ -423,14 +423,14 @@ void hss_proxy_rcv_cmd(struct hss_packet *packet,
 	/* Copy the header so the entire packet can be evaluated */
 	if (packet_len < HSS_HDR_LEN)
 		return;
-	hss_packet_from_buf(&newwork->data, (char *)packet, HSS_COPY_HDR);
+	hss_packet_from_buf(&newwork->data, packet, HSS_COPY_HDR);
 
 	/* Make sure the length sent is correct and copy any given payload */
 	if (packet_len != newwork->data.hdr.payload_len + HSS_HDR_LEN ||
 			newwork->data.hdr.payload_len > 64 - HSS_HDR_LEN)
 		return;
 	else if (newwork->data.hdr.payload_len > 0 )
-		hss_packet_from_buf(&newwork->data, (char *)packet, HSS_COPY_FIELDS);
+		hss_packet_from_buf(&newwork->data, packet, HSS_COPY_FIELDS);
 
 	INIT_WORK(&newwork->work, hss_proxy_process_cmd);
 	queue_work(proxy_ctx->proxy_wq, &newwork->work);
@@ -456,13 +456,18 @@ int hss_proxy_rcv_data(void *data, int len, void *context)
 	struct circ_buf *ring = &proxy_ctx->read_cache;
 	int did_copy;
 
-	newwork = kmalloc(sizeof(struct work_data_t), GFP_ATOMIC);
-	newwork->context = proxy_ctx;
-
 	did_copy = hss_ring_write(ring, READ_CACHE_SIZE, data, len);
 
-	INIT_WORK(&newwork->work, hss_proxy_process_data);
-	queue_work(proxy_ctx->proxy_data_wq, &newwork->work);
+	newwork = kmalloc(sizeof(struct work_data_t), GFP_ATOMIC);
+
+	if(newwork) {
+		newwork->context = proxy_ctx;
+
+		INIT_WORK(&newwork->work, hss_proxy_process_data);
+		queue_work(proxy_ctx->proxy_data_wq, &newwork->work);
+	} else {
+		pr_err("%s could not allocate work item.\n", __func__);
+	}
 
 	return did_copy;
 }
@@ -599,7 +604,7 @@ static int hss_proxy_transmit_send(
 }
 
 /**
- * hss_proxy_run_in_data - Handles inbound (from device)
+ * hss_proxy_transmit_and_consume - Handles inbound (from device)
  * data type commands
  *
  * @packet The packet to process
@@ -608,7 +613,7 @@ static int hss_proxy_transmit_send(
  * Notes:
  * Returns a newly allocated ACK or NULL. Caller must free
  */
-static struct hss_packet *hss_proxy_run_in_data(
+static struct hss_packet *hss_proxy_transmit_and_consume(
 	struct hss_packet_hdr *packet_hdr,
 	struct circ_buf *ring,
 	struct hss_proxy_context *context)
@@ -647,7 +652,7 @@ static void hss_proxy_process_data(struct work_struct *work)
 	int packet_len;
 	int circ_cnt;
 	struct hss_packet *ack = NULL;
-	struct hss_packet pkt;
+	struct hss_packet packet;
 	char cont_hdr_space[HSS_HDR_LEN];
 	struct hss_ring_section section;
 
@@ -670,14 +675,14 @@ static void hss_proxy_process_data(struct work_struct *work)
 	memcpy(((char *) cont_hdr_space) + section.len, ring->buf, section.wrap);
 
 	/* Convert the contiguous buffer to a readable packet */
-	hss_packet_from_buf(&pkt, cont_hdr_space, HSS_COPY_HDR);
+	hss_packet_from_buf(&packet, cont_hdr_space, HSS_COPY_HDR);
 
 	/* Compare the amount of data ready to be read against the stated length of the packet */
 	circ_cnt = CIRC_CNT(
 		READ_ONCE(ring->head),
 		READ_ONCE(ring->tail),
 		READ_CACHE_SIZE);
-	packet_len = hss_get_packet_len(&pkt);
+	packet_len = packet.hdr.payload_len + HSS_HDR_LEN;
 
 	/* Do not continue if the entire payload hasn't arrived */
 	if (packet_len > circ_cnt)
@@ -686,8 +691,8 @@ static void hss_proxy_process_data(struct work_struct *work)
 	/* If the entire packet can be read consume the header */
 	hss_ring_consume(ring, READ_CACHE_SIZE, section);
 
-	/* Run the transmit packet */
-	ack = hss_proxy_run_in_data(&pkt.hdr, ring, proxy_context);
+	/* Transmit and consume the payload data */
+	ack = hss_proxy_transmit_and_consume(&packet.hdr, ring, proxy_context);
 
 	/* Send an ACK if applicable */
 	if (ack) {
