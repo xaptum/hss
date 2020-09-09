@@ -8,17 +8,20 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/net.h>
 
 /* Define the length of fixed data on each packet type. Useful for knowing where
  * to write arbitrary payloads. All values are taken from section 3.3.5 of the
  * HSS specification. These values should never be used for memory operations on
  * struct hss_packet. */
-#define HSS_HDR_LEN 12
+#define HSS_HDR_LEN 0xC
 #define HSS_FIXED_LEN_CLOSE HSS_HDR_LEN
 #define HSS_FIXED_LEN_TRANSMIT HSS_HDR_LEN
 #define HSS_FIXED_LEN_ACK HSS_HDR_LEN+3
 #define HSS_FIXED_LEN_REPLY HSS_FIXED_LEN_ACK
 #define HSS_FIXED_LEN_OPEN HSS_HDR_LEN+9
+#define HSS_FIXED_LEN_CONN_IP6 HSS_HDR_LEN+0x28
+#define HSS_FIXED_LEN_CONN_IP4 HSS_HDR_LEN+8
 
 enum __attribute__ ((__packed__)) hss_opcode {
 	HSS_OP_OPEN	= 0x00,
@@ -191,6 +194,64 @@ static inline void hss_packet_fill_open(struct hss_packet *packet, enum hss_fami
 	packet->open.protocol = proto;
 	packet->open.type = type;
 	packet->open.handle = local_id;
+}
+
+/**
+ * hss_proxy_assign_ip4 - Assign an IPv4 address to an HSS packet
+ *
+ * @packet The packet being written to
+ * @addr The socket address
+ *
+ * Fills the packets connect member to the information given in the
+ * addr parameter.
+ *
+ */
+static void hss_packet_assign_ip4(struct hss_packet *packet,
+	struct sockaddr *addr)
+{
+	struct sockaddr_in *ip4_addr = (struct sockaddr_in *) addr;
+
+	packet->connect.addr.ip4.ip_addr = ip4_addr->sin_addr.s_addr;
+	packet->connect.port = ip4_addr->sin_port;
+	packet->connect.family = HSS_FAM_IP;
+
+	packet->hdr.payload_len = HSS_FIXED_LEN_CONN_IP4 - HSS_HDR_LEN;
+}
+
+/**
+ * hss_proxy_assign_ip6 - Assign an IPv6 address to an HSS packet
+ *
+ * @packet The packet being written to
+ * @addr The socket address
+ *
+ * Fills the packets connect member to the information given in the
+ * addr parameter.
+ *
+ */
+static void hss_packet_assign_ip6(struct hss_packet *packet,
+	struct sockaddr *addr)
+{
+	struct sockaddr_in6 *ip6_addr = (struct sockaddr_in6 *) addr;
+
+	memcpy(packet->connect.addr.ip6.ip_addr,
+		&ip6_addr->sin6_addr, sizeof(struct in6_addr));
+	packet->connect.port = ip6_addr->sin6_port;
+	packet->connect.addr.ip6.scope_id = ip6_addr->sin6_scope_id;
+	packet->connect.addr.ip6.flow_info = ip6_addr->sin6_flowinfo;
+	packet->connect.family = HSS_FAM_IP6;
+
+	packet->hdr.payload_len = HSS_FIXED_LEN_CONN_IP6 - HSS_HDR_LEN;
+}
+
+static inline void hss_packet_fill_connect(struct hss_packet *packet,
+	u16 msg_id, u32 sock_id, struct sockaddr *addr)
+{
+	hss_fill_packet(packet, HSS_OP_CONNECT, sock_id);
+
+	if (addr->sa_family == AF_INET)
+		hss_proxy_assign_ip4(packet, addr);
+	else if (addr->sa_family == AF_INET6)
+		hss_proxy_assign_ip6(packet, addr);
 }
 
 /**
