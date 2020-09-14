@@ -1,0 +1,32 @@
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 9625b99e677f..c0dc8cf96f7f 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -1319,7 +1319,9 @@ static inline u16 socket_type_to_security_class(int family, int type, int protoc
+ 			return SECCLASS_SMC_SOCKET;
+ 		case PF_XDP:
+ 			return SECCLASS_XDP_SOCKET;
+-#if PF_MAX > 45
++		case PF_HSS:
++			return SECCLASS_HSS_SOCKET;
++#if PF_MAX > 46
+ #error New address family defined, please update this function.
+ #endif
+ 		}
+diff --git a/security/selinux/include/classmap.h b/security/selinux/include/classmap.h
+index 32e9b03be3dd..41c05873647e 100644
+--- a/security/selinux/include/classmap.h
++++ b/security/selinux/include/classmap.h
+@@ -244,9 +244,11 @@ struct security_class_mapping secclass_map[] = {
+ 	  {"map_create", "map_read", "map_write", "prog_load", "prog_run"} },
+ 	{ "xdp_socket",
+ 	  { COMMON_SOCK_PERMS, NULL } },
++	{ "hss_socket",
++	  { COMMON_SOCK_PERMS, NULL } },
+ 	{ NULL }
+   };
+ 
+-#if PF_MAX > 45
++#if PF_MAX > 46
+ #error New address family defined, please update secclass_map.
+ #endif

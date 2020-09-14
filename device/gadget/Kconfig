@@ -1,0 +1,6 @@
+#
+# HSS USB Gadget
+#
+
+config HSS_GADGET
+	bool "HSS USB Device Support"

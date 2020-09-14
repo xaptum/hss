@@ -1,0 +1,2 @@
+obj-m += hss-net.o
+hss-net-objs := hss.o hss_proxy.o
