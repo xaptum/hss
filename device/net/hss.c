@@ -443,6 +443,7 @@ static int hss_sock_sendmsg(struct socket *sock,
 	release_sock(sk);
 	bytes_sent = hss_proxy_write_socket(psk->local_id, data,
 		bytes_copied, g_proxy_context);
+	kfree(data);
 	goto out_nolock;
 
 out_release:
