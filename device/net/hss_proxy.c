@@ -466,7 +466,6 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 
 	/* If in a carryover situation, copy the incoming data and replace `buf` with the persistent buffer */
 	if (proxy_inst->carry_pkt) {
-		printk("%s in carryover, stored=%d, incoming=%d", __func__, proxy_inst->carry_pkt_len, len);
 		hss_proxy_carry(proxy_inst, buf, len);
 
 		/* Replace the incoming buffer with the persistent values and continue as normal */

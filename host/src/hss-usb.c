@@ -342,46 +342,44 @@ int hss_cmd_out(void *context, void *msg, int msg_len)
 	return ret;
 }
 
-static void hss_bulk_out_callback(struct urb *urb)
-{
-	struct usb_hss *dev = urb->context;
-
-	if (urb->status != 0)
-		pr_info("Bulk failed status=%d",
-			urb->status);
-	up(&dev->bulk_out_sem);
-}
-
 int hss_bulk_out(void *context, void *msg, int msg_len)
 {
 	int ret = -1;
 	struct usb_hss *dev = context;
+	int sent_len = 0;
+	int actual_len = 0;
 
-	/* Protect over-copying */
-	if (msg_len > XAPRC00X_BULK_OUT_BUF_SIZE)
-		msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
-
+	/* Only one sock at a time */
 	down(&dev->bulk_out_sem);
 
-	memcpy(dev->bulk_out_buffer, msg, msg_len);
+	while (sent_len != msg_len) {
+		/* Send as much of the remaining message as possible */
+		int seg_len = min(msg_len-sent_len, XAPRC00X_BULK_OUT_BUF_SIZE);
 
-	usb_fill_bulk_urb(dev->bulk_out_urb,
-		dev->udev,
-		usb_sndbulkpipe(dev->udev,
-			dev->bulk_out_endpointAddr),
-		dev->bulk_out_buffer,
-		msg_len,
-		hss_bulk_out_callback,
-		dev);
+		memcpy(dev->bulk_out_buffer, ((char*)msg + sent_len), seg_len);
 
-	ret = usb_submit_urb(dev->bulk_out_urb, GFP_ATOMIC);
+		/* Send a bulk message to the device and wait for a reply */
+		ret = usb_bulk_msg(
+			dev->udev,
+			usb_sndbulkpipe(dev->udev,
+				dev->bulk_out_endpointAddr),
+			dev->bulk_out_buffer,
+			seg_len,
+			&actual_len,
+			0);
 
-	/* If the queue failed the CB will never be called */
-	if (ret < 0)
-		up(&dev->bulk_out_sem);
+		/* Increment the sent length if the call worked */
+		if (ret == 0) {
+			sent_len += actual_len;
+		} else {
+			break;
+		}
+	}
+
+	up(&dev->bulk_out_sem);
 
 	/* Either return the number of bytes sent or negative error code */
-	return (ret == 0) ? msg_len : ret;
+	return sent_len;
 }
 
 static void hss_driver_disconnect(struct usb_interface *interface)

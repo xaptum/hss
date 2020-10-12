@@ -331,8 +331,6 @@ static void hss_send_transmit(
 	if (bulk_ret != packet_len)
 		pr_err("%s bulk_out send %d, returned %d\n",
 			__func__, packet_len, bulk_ret);
-
-	printk("%s sent %d, returned %d", __func__, packet_len, bulk_ret);
 }
 
 /* Continually listen to a socket and pass its data over USB */
