@@ -549,6 +549,16 @@ static int hss_set_alt(struct usb_function *f, unsigned int intf,
 	struct f_hss *hss = func_to_hss(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
 
+	/* Free the request buffers */
+	if (hss->req_bulk_out) {
+		kfree(hss->req_bulk_out);
+		hss->req_bulk_out = NULL;
+	}
+	if (hss->req_out) {
+		kfree(hss->req_out);
+		hss->req_out = NULL;
+	}
+
 	disable_hss(hss);
 	ret = enable_hss(cdev, hss);
 	if (ret)
@@ -732,21 +742,28 @@ static void hss_send_bulk_msg(char *hdr, size_t hdr_len, char *data,
 }
 static void hss_read_out_cmd_cb(struct usb_ep *ep, struct usb_request *req)
 {
-	if (req->buf) {
+	/* Process the incoming data on success */
+	if (req->buf && req->status == 0) {
 		struct f_hss *ctx = (struct f_hss *)req->context;
 		hss_proxy_rcv_cmd(req->buf, req->actual, ctx->proxy_context);
 	}
-	hss_read_out_cmd(req->context);
+
+	/* Requeue as long as the buffer still exists */
+	if (req->buf)
+		usb_ep_queue(ep, req, GFP_ATOMIC);
 }
 
 static void hss_read_out_bulk_cb(struct usb_ep *ep, struct usb_request *req)
 {
-	if (req->buf) {
+	/* Process the incoming data on success */
+	if (req->buf && req->status == 0) {
 		struct f_hss *ctx = (struct f_hss *)req->context;
 		hss_proxy_rcv_data(req->buf, req->actual, ctx->proxy_context);
-		kfree(req->buf);
 	}
-	hss_read_out_bulk(req->context);
+
+	/* Requeue as long as the buffer still exists */
+	if (req->buf)
+		usb_ep_queue(ep, req, GFP_ATOMIC);
 }
 
 static int hss_read_out_cmd(struct f_hss *hss_inst)
@@ -772,8 +789,7 @@ static int hss_read_out_bulk(struct f_hss *hss_inst)
 	out_bulk_req->dma = 0;
 	out_bulk_req->complete = hss_read_out_bulk_cb;
 	out_bulk_req->context = hss_inst;
-	usb_ep_queue(hss_inst->bulk_out, out_bulk_req, GFP_ATOMIC);
-	return 0;
+	return usb_ep_queue(hss_inst->bulk_out, out_bulk_req, GFP_ATOMIC);
 }
 
 MODULE_LICENSE("GPL v2");
