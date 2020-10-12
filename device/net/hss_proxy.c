@@ -18,6 +18,8 @@ struct hss_proxy_inst {
 	struct workqueue_struct *ack_wq;
 	struct workqueue_struct *data_wq;
 	struct list_head ack_list;
+	char *carry_pkt; /* A persistent holder for a single HSS packet that has been split into multiple USB transfers */
+	int carry_pkt_len;
 };
 
 struct hss_proxy_work {
@@ -430,27 +432,73 @@ out:
 }
 EXPORT_SYMBOL_GPL(hss_proxy_rcv_cmd);
 
+static void hss_proxy_carry(struct hss_proxy_inst *proxy_inst, char *buf, int len)
+{
+	proxy_inst->carry_pkt = krealloc(
+			proxy_inst->carry_pkt,
+			proxy_inst->carry_pkt_len + len,
+			GFP_KERNEL);
+	memcpy(proxy_inst->carry_pkt + proxy_inst->carry_pkt_len, buf, len);
+	proxy_inst->carry_pkt_len += len;
+}
+
+static void hss_proxy_end_carry(struct hss_proxy_inst *proxy_inst)
+{
+	kfree(proxy_inst->carry_pkt);
+	proxy_inst->carry_pkt = NULL;
+	proxy_inst->carry_pkt_len = 0;
+}
+
 void hss_proxy_rcv_data(char *buf, size_t len,
 	void *proxy_context)
 {
 	struct hss_packet *packet;
+	struct hss_proxy_inst *proxy_inst;
 
-	/* Make sure at least a header came in */
-	if (!buf || len < HSS_HDR_LEN)
+	if (!buf)
 		return;
+
+	proxy_inst = proxy_context;
+
+	/* If in a carryover situation, copy the incoming data and replace `buf` with the persistent buffer */
+	if (proxy_inst->carry_pkt) {
+		printk("%s in carryover, stored=%d, incoming=%d", __func__, proxy_inst->carry_pkt_len, len);
+		hss_proxy_carry(proxy_inst, buf, len);
+
+		/* Replace the incoming buffer with the persistent values and continue as normal */
+		buf = proxy_inst->carry_pkt;
+		len  = proxy_inst->carry_pkt_len;
+	}
+
+	/* Make sure at least a header has come in before continuing */
+	if(len < HSS_HDR_LEN) {
+		/* Start a carryover if not already in one */
+		if (!proxy_inst->carry_pkt) {
+			printk("%s starting partial hdr carryover, len=%d", __func__, len);
+			hss_proxy_carry(proxy_inst, buf, len);
+		}
+		goto out;
+	}
 
 	packet = kmalloc(sizeof(struct hss_packet), GFP_ATOMIC);
 	hss_packet_from_buf(packet, buf, HSS_COPY_HDR);
 
-	/* Make sure the entire packet came in */
-	if(len != HSS_HDR_LEN + packet->hdr.payload_len)
+	/* Make sure the entire packet has come through */
+	if(len < HSS_HDR_LEN + packet->hdr.payload_len) {
+		printk("%s incomplete packet\n", __func__);
+		/* Start a carryover if not already in one */
+		if (!proxy_inst->carry_pkt) {
+			printk("%s starting partial packet carryover, len=%d", __func__, len);
+			hss_proxy_carry(proxy_inst, buf, len);
+		}
 		goto out_free;
+	}
 
 	switch (packet->hdr.opcode) {
 	case HSS_OP_TRANSMIT:
 		/* Reallocate the header to a buffer with enough space to copy the payload */
 		packet = krealloc(packet,
-			sizeof(struct hss_packet) + packet->hdr.payload_len, GFP_ATOMIC);
+			HSS_HDR_LEN + packet->hdr.payload_len, GFP_ATOMIC);
 		memcpy(packet->hss_payload_none, buf + HSS_HDR_LEN, packet->hdr.payload_len);
 
 		/* Shedule handling of this operation */
@@ -462,8 +510,10 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 		goto out_free;
 		break;
 	}
-	goto out;
+	/* Clear the carry packet conditions */
+	hss_proxy_end_carry(proxy_inst);
 
+	goto out;
 out_free:
 	kfree(packet);
 out:
