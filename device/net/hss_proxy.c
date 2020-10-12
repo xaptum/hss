@@ -454,6 +454,10 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 {
 	struct hss_packet *packet;
 	struct hss_proxy_inst *proxy_inst;
+	/* Our `buf` param may be replaced by a persisent buffer so an original is
+	 * useful in many-HSS to one-USB scenarios where the original buffer is
+	 * required*/
+	char *param_buf = buf;
 
 	if (!buf)
 		return;
@@ -474,7 +478,6 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 	if(len < HSS_HDR_LEN) {
 		/* Start a carryover if not already in one */
 		if (!proxy_inst->carry_pkt) {
-			printk("%s starting partial hdr carryover, len=%d", __func__, len);
 			hss_proxy_carry(proxy_inst, buf, len);
 		}
 		goto out;
@@ -485,10 +488,8 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 
 	/* Make sure the entire packet has come through */
 	if(len < HSS_HDR_LEN + packet->hdr.payload_len) {
-		printk("%s incomplete packet\n", __func__);
 		/* Start a carryover if not already in one */
 		if (!proxy_inst->carry_pkt) {
-			printk("%s starting partial packet carryover, len=%d", __func__, len);
 			hss_proxy_carry(proxy_inst, buf, len);
 		}
 		goto out_free;
@@ -510,8 +511,19 @@ void hss_proxy_rcv_data(char *buf, size_t len,
 		goto out_free;
 		break;
 	}
-	/* Clear the carry packet conditions */
-	hss_proxy_end_carry(proxy_inst);
+
+	/* If there is leftover data at the end of the buffer it is another HSS packet */
+	/* TODO This copy is dangerous if the caller is inconsistent with the size of buf in between calls.
+	 * This is what ring buffers are great for */
+	len -= HSS_HDR_LEN + packet->hdr.payload_len;
+	if (len) {
+		memcpy(param_buf, buf + HSS_HDR_LEN + packet->hdr.payload_len, len);
+		hss_proxy_end_carry(proxy_inst);
+		hss_proxy_rcv_data(param_buf, len, proxy_context);
+	} else {
+		/* If this is a terminal condition stop any carry over before exiting */
+		hss_proxy_end_carry(proxy_inst);
+	}
 
 	goto out;
 out_free:
