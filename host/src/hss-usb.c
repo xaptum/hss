@@ -179,7 +179,7 @@ static int hss_driver_probe(struct usb_interface *interface,
 	}
 
 	dev->bulk_in_buffer = usb_alloc_coherent(dev->udev,
-		sizeof(struct hss_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		XAPRC00X_BULK_IN_BUF_SIZE,
 		GFP_KERNEL, &dev->bulk_in_urb->transfer_dma);
 	if (!dev->bulk_in_buffer) {
 		retval = -ENOMEM;
@@ -295,7 +295,7 @@ static int hss_read_cmd(struct usb_hss *dev)
 		usb_rcvbulkpipe(dev->udev,
 			dev->bulk_in_endpointAddr),
 		dev->bulk_in_buffer,
-		sizeof(struct hss_packet) + XAPRC00X_BULK_IN_BUF_SIZE,
+		XAPRC00X_BULK_IN_BUF_SIZE,
 		hss_read_bulk_callback,
 		dev);
 	dev->bulk_in_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
