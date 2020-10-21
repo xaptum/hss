@@ -18,6 +18,8 @@ struct hss_proxy_inst {
 	struct workqueue_struct *ack_wq;
 	struct workqueue_struct *data_wq;
 	struct list_head ack_list;
+	char *carry_pkt; /* A persistent holder for a single HSS packet that has been split into multiple USB transfers */
+	int carry_pkt_len;
 };
 
 struct hss_proxy_work {
@@ -47,57 +49,6 @@ static int hss_proxy_get_msg_id(struct hss_proxy_inst *proxy_context)
 	 */
 	id = atomic_inc_return(&proxy_context->hss_msg_id);
 	return id;
-}
-
-/**
- * hss_proxy_assign_ip4 - Assign an IPv4 address to an HSS packet
- *
- * @packet The packet being written to
- * @addr The socket address
- *
- * Fills the packets connect member to the information given in the
- * addr parameter.
- *
- */
-static void hss_proxy_assign_ip4(struct hss_packet *packet,
-	struct sockaddr *addr)
-{
-	struct sockaddr_in *ip4_addr = (struct sockaddr_in *) addr;
-
-	packet->connect.addr.ip4.ip_addr = ip4_addr->sin_addr.s_addr;
-	packet->connect.port = ip4_addr->sin_port;
-	packet->connect.family = HSS_FAM_IP;
-
-	packet->hdr.payload_len = sizeof(struct hss_payload_connect_ip) -
-		sizeof(union hss_payload_connect_ip_addr) +
-		sizeof(struct hss_payload_connect_ip4);
-}
-
-/**
- * hss_proxy_assign_ip6 - Assign an IPv6 address to an HSS packet
- *
- * @packet The packet being written to
- * @addr The socket address
- *
- * Fills the packets connect member to the information given in the
- * addr parameter.
- *
- */
-static void hss_proxy_assign_ip6(struct hss_packet *packet,
-	struct sockaddr *addr)
-{
-	struct sockaddr_in6 *ip6_addr = (struct sockaddr_in6 *) addr;
-
-	memcpy(packet->connect.addr.ip6.ip_addr,
-		&ip6_addr->sin6_addr, sizeof(struct in6_addr));
-	packet->connect.port = ip6_addr->sin6_port;
-	packet->connect.addr.ip6.scope_id = ip6_addr->sin6_scope_id;
-	packet->connect.addr.ip6.flow_info = ip6_addr->sin6_flowinfo;
-	packet->connect.family = HSS_FAM_IP6;
-
-	packet->hdr.payload_len = sizeof(struct hss_payload_connect_ip) -
-		sizeof(union hss_payload_connect_ip_addr) +
-		sizeof(struct hss_payload_connect_ip6);
 }
 
 static void hss_proxy_process_open_ack(struct work_struct *work)
@@ -156,30 +107,25 @@ static void hss_proxy_process_transmit(struct work_struct *work)
  * Processes an HSS ACK packet. The `packet` parameter may be modified or
  * free'd after this functions returns.
  *
+ * Returns: 0 on success, 1 on failure (indicating it will not free packet)
+ *
  */
- void hss_proxy_recv_ack(struct hss_packet *packet, void *inst)
+ int hss_proxy_recv_ack(struct hss_packet *packet, void *inst)
 {
 	struct hss_proxy_work *new_work;
 	struct hss_proxy_inst *proxy_inst;
-
-	/* The work item will be cleared at thend of the job */
-	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
-	if (!new_work)
-		return;
-	new_work->proxy_context = inst;
-
-	/**
-	 * This packet will be freed when the socket no longer needs it
-	 * which may be after the workqueue is done
-	 */
-	new_work->packet = kmalloc(sizeof(*packet), GFP_ATOMIC);
-	if (!new_work->packet) {
-		kfree(new_work);
-		return;
-	}
-	memcpy(new_work->packet, packet, sizeof(*packet));
+	int ret = 0;
 
 	proxy_inst = inst;
+
+	/* The work item will be cleared at the end of the job */
+	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
+	if (!new_work) {
+		ret = 1;
+		goto out;
+	}
+	new_work->proxy_context = proxy_inst;
+	new_work->packet = packet;
 
 	/* Queue a work item to handle the incoming packet */
 	switch (packet->ack.orig_opcode) {
@@ -193,45 +139,50 @@ static void hss_proxy_process_transmit(struct work_struct *work)
 		break;
 	case HSS_OP_CLOSE: /* Device does not care if the host ACKs */
 	default:
-		kfree(new_work->packet);
 		kfree(new_work);
+		ret = 1;
 		break;
 	}
+
+out:
+	return ret;
 }
 
-void hss_proxy_recv_transmit(struct hss_packet *packet, void *inst)
+
+/**
+ * hss_proxy_recv_transmit - Recieves an TRANSMIT message
+ *
+ * @packet The packet to process
+ * @context The HSS proxy context
+ *
+ * Processes an HSS TRANSMIT packet.
+ *
+ */
+int hss_proxy_recv_transmit(struct hss_packet *packet, void *inst)
 {
 	struct hss_proxy_work *new_work;
 	struct hss_proxy_inst *proxy_inst;
 	int data_packet_len;
-	/* The work item will be cleared at thend of the job */
-
-	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
-
-	if (!new_work)
-		return;
-
-	new_work->proxy_context = inst;
-
-	/**
-	 * This packet will be freed when the socket no longer needs it
-	 * which may be after the workqueue is done
-	 */
-	data_packet_len = sizeof(struct hss_packet_hdr) +
-		packet->hdr.payload_len;
-	new_work->packet = kmalloc(
-		data_packet_len,
-		GFP_ATOMIC);
-	if (!new_work->packet) {
-		kfree(new_work);
-		return;
-	}
-	memcpy(new_work->packet, packet, data_packet_len);
+	int ret = 0;
 
 	proxy_inst = inst;
 
+	/* The work item will be cleared at thend of the job */
+	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
+
+	if (!new_work) {
+		ret = 1;
+		goto out;
+	}
+
+	new_work->proxy_context = proxy_inst;
+	new_work->packet = packet;
+
 	INIT_WORK(&new_work->work, hss_proxy_process_transmit);
 	queue_work(proxy_inst->data_wq, &new_work->work);
+
+out:
+	return ret;
 }
 
 /**
@@ -244,30 +195,29 @@ void hss_proxy_recv_transmit(struct hss_packet *packet, void *inst)
  * free'd after this functions returns.
  *
  */
-void hss_proxy_recv_close(struct hss_packet *packet, void *inst)
+int hss_proxy_recv_close(struct hss_packet *packet, void *inst)
 {
 	struct hss_proxy_work *new_work;
 	struct hss_proxy_inst *proxy_inst;
-
-	/* The work item will be cleared at thend of the job */
-	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
-	if (!new_work)
-		return;
-	new_work->proxy_context = inst;
-
-	/* CLOSE does not have any fields */
-	new_work->packet = kmalloc(sizeof(*packet), GFP_ATOMIC);
-	if (!new_work->packet) {
-		kfree(new_work);
-		return;
-	}
-	memcpy(new_work->packet, packet, sizeof(*packet));
+	int ret = 0;
 
 	proxy_inst = inst;
+
+	/* The work item will be cleared at the end of the job */
+	new_work = kmalloc(sizeof(*new_work), GFP_ATOMIC);
+	if (!new_work) {
+		ret = 1;
+		goto out;
+	}
+	new_work->proxy_context = proxy_inst;
+	new_work->packet = packet;
 
 	/* Queue a work item to handle the incoming packet */
 	INIT_WORK(&new_work->work, hss_proxy_process_close);
 	queue_work(proxy_inst->ack_wq, &new_work->work);
+
+out:
+	return ret;
 }
 
 /**
@@ -332,28 +282,19 @@ EXPORT_SYMBOL_GPL(hss_proxy_init);
 int hss_proxy_connect_socket(int local_id, struct sockaddr *addr, int alen,
 	void *context)
 {
-	struct hss_packet *packet = kzalloc(sizeof(struct hss_packet),
-		GFP_KERNEL);
-	int ret;
-	struct hss_payload_ack ack;
+	struct hss_packet packet;
 	struct hss_proxy_inst *proxy_inst;
+	char hss_out[HSS_FIXED_LEN_CONN_IP6];
 
 	proxy_inst = context;
 
-	packet->hdr.opcode = HSS_OP_CONNECT;
-	packet->hdr.msg_id = hss_proxy_get_msg_id(context);
-	packet->hdr.sock_id = local_id;
+	hss_packet_fill_connect(&packet, hss_proxy_get_msg_id(context), local_id,
+		addr);
+	hss_packet_to_buf(&packet, hss_out, HSS_COPY_FIELDS);
 
-	if (addr->sa_family == AF_INET)
-		hss_proxy_assign_ip4(packet, addr);
-	else if (addr->sa_family == AF_INET6)
-		hss_proxy_assign_ip6(packet, addr);
-
-	proxy_inst->usb_intf->hss_cmd((char*)packet,
-		sizeof(struct hss_packet_hdr) + packet->hdr.payload_len,
+	proxy_inst->usb_intf->hss_cmd(hss_out,
+		HSS_HDR_LEN + packet.hdr.payload_len,
 		proxy_inst->usb_context);
-
-	kfree(packet);
 
 	return 0;
 }
@@ -372,23 +313,18 @@ int hss_proxy_connect_socket(int local_id, struct sockaddr *addr, int alen,
  */
 int hss_proxy_open_socket(int local_id, void *context)
 {
-	struct hss_packet *packet = kzalloc(sizeof(struct hss_packet),
-		GFP_ATOMIC);
+	struct hss_packet packet;
 	int ret;
-	struct hss_payload_ack ack;
 	struct hss_proxy_inst *proxy_inst;
+	char hss_send[HSS_FIXED_LEN_OPEN];
 
 	proxy_inst = context;
 
-	packet->hdr.opcode = HSS_OP_OPEN;
-	packet->hdr.msg_id = hss_proxy_get_msg_id(proxy_inst);
-	packet->hdr.payload_len = sizeof(struct hss_payload_open);
-	packet->open.addr_family = HSS_FAM_IP;
-	packet->open.protocol = HSS_PROTO_TCP;
-	packet->open.type = HSS_TYPE_STREAM;
-	packet->open.handle = local_id;
+	hss_packet_fill_open(&packet, HSS_FAM_IP, HSS_PROTO_TCP, HSS_TYPE_STREAM,
+		local_id, hss_proxy_get_msg_id(proxy_inst));
+	hss_packet_to_buf(&packet, hss_send, HSS_COPY_FIELDS);
 
-	proxy_inst->usb_intf->hss_cmd((char*)packet, sizeof(struct hss_packet),
+	proxy_inst->usb_intf->hss_cmd(hss_send, HSS_FIXED_LEN_OPEN,
 		proxy_inst->usb_context);
 
 	return 0;
@@ -397,6 +333,7 @@ int hss_proxy_open_socket(int local_id, void *context)
 
 /**
  * hss_proxy_close_socket - Close a HSS socket on the host
+ * on behalf of the device side socket
  *
  * @local_id The ID of the socket to close
  * @context The HSS proxy context
@@ -407,37 +344,33 @@ int hss_proxy_open_socket(int local_id, void *context)
 void hss_proxy_close_socket(int local_id, void *context)
 {
 	struct hss_packet *ack;
-	struct hss_packet *packet = kzalloc(sizeof(struct hss_packet),
-		GFP_KERNEL);
+	struct hss_packet packet;
 	struct hss_proxy_inst *proxy_inst;
+	char hss_out[HSS_FIXED_LEN_CLOSE];
 
 	proxy_inst = context;
 
-	packet->hdr.opcode = HSS_OP_CLOSE;
-	packet->hdr.msg_id = hss_proxy_get_msg_id(context);
-	packet->hdr.sock_id = local_id;
-	packet->hdr.payload_len = 0;
+	hss_packet_fill_close(&packet, local_id, hss_proxy_get_msg_id(context));
+	hss_packet_to_buf(&packet, hss_out, HSS_COPY_FIELDS);
 
-	proxy_inst->usb_intf->hss_cmd((char*)packet, sizeof(struct hss_packet_hdr),
+	proxy_inst->usb_intf->hss_cmd(hss_out, HSS_FIXED_LEN_CLOSE,
 		proxy_inst->usb_context);
-
-	kfree(packet);
 }
 
 int hss_proxy_write_socket(int sock_id, void *msg, int len, void *context)
 {
 	struct hss_proxy_inst *proxy_inst;
-	struct hss_packet_hdr packet;
+	struct hss_packet packet;
+	char hss_out[HSS_FIXED_LEN_TRANSMIT];
 
 	proxy_inst = context;
 
-	packet.opcode = HSS_OP_TRANSMIT;
-	packet.msg_id = hss_proxy_get_msg_id(context);
-	packet.sock_id = sock_id;
-	packet.payload_len = len;
+	hss_packet_fill_transmit(&packet, sock_id, NULL, len,
+		hss_proxy_get_msg_id(context));
+	hss_packet_to_buf(&packet, hss_out, HSS_COPY_FIELDS);
 
-	proxy_inst->usb_intf->hss_transfer(&packet, (char*)msg, len,
-		proxy_inst->usb_context);
+	proxy_inst->usb_intf->hss_transfer(hss_out, HSS_FIXED_LEN_TRANSMIT,
+		(char*)msg, len, proxy_inst->usb_context);
 	return len;
 }
 
@@ -447,53 +380,154 @@ int hss_proxy_write_socket(int sock_id, void *msg, int len, void *context)
  * Reads HSS command from the host
  * Note: Called in an atomic context
  */
-void hss_proxy_rcv_cmd(struct hss_packet *packet, size_t len,
+void hss_proxy_rcv_cmd(char *buf, size_t len,
 	void *proxy_context)
 {
-	/**
-	 *Make sure the packet is big enough for the packet and payload
-	 * (checked in order to avoid reading bad memory)
-	 */
-	if (!packet || len < sizeof(*packet) ||
-		len > (sizeof(*packet)+packet->hdr.payload_len))
+	struct hss_packet *packet;
+
+	/* Make sure at least a header came in */
+	if (!buf || len < HSS_HDR_LEN)
 		return;
+
+	packet = kmalloc(HSS_HDR_LEN, GFP_ATOMIC);
+	hss_packet_from_buf(packet, buf, HSS_COPY_HDR);
+
+	/* Make sure the entire packet came in */
+	if(len != HSS_HDR_LEN + packet->hdr.payload_len)
+		goto out_free;
+
+	if (len > HSS_HDR_LEN) {
+		packet = krealloc(packet, HSS_HDR_LEN + packet->hdr.payload_len,
+			GFP_ATOMIC);
+		hss_packet_from_buf(packet, buf, HSS_COPY_FIELDS);
+
+		/* ACK is the only command op that can have an arbitrary payload */
+		if (packet->hdr.opcode == HSS_OP_ACK)
+			memcpy(packet->ack.empty, buf + HSS_FIXED_LEN_ACK,
+				packet->hdr.payload_len - HSS_FIXED_LEN_ACK + HSS_HDR_LEN);
+	}
 
 	/* Incoming command is either a close notificaiton or ACK */
 	switch (packet->hdr.opcode) {
 	case HSS_OP_ACK:
-		hss_proxy_recv_ack(packet, proxy_context);
+		if (hss_proxy_recv_ack(packet, proxy_context) == 1)
+			goto out_free;
 		break;
 	case HSS_OP_CLOSE:
-		hss_proxy_recv_close(packet, proxy_context);
+		if (hss_proxy_recv_close(packet, proxy_context) == 1)
+			goto out_free;
 		break;
 	default:
 		pr_err("%s got unexpected packet %d",
 			__func__, packet->hdr.opcode);
+		goto out_free;
 		break;
 	}
+	goto out;
+
+out_free:
+	kfree(packet);
+out:
+	return;
 }
 EXPORT_SYMBOL_GPL(hss_proxy_rcv_cmd);
 
-void hss_proxy_rcv_data(struct hss_packet *packet, size_t len,
+static void hss_proxy_carry(struct hss_proxy_inst *proxy_inst, char *buf, int len)
+{
+	proxy_inst->carry_pkt = krealloc(
+			proxy_inst->carry_pkt,
+			proxy_inst->carry_pkt_len + len,
+			GFP_KERNEL);
+	memcpy(proxy_inst->carry_pkt + proxy_inst->carry_pkt_len, buf, len);
+	proxy_inst->carry_pkt_len += len;
+}
+
+static void hss_proxy_end_carry(struct hss_proxy_inst *proxy_inst)
+{
+	kfree(proxy_inst->carry_pkt);
+	proxy_inst->carry_pkt = NULL;
+	proxy_inst->carry_pkt_len = 0;
+}
+
+void hss_proxy_rcv_data(char *buf, size_t len,
 	void *proxy_context)
 {
-	/**
-	 *Make sure the packet is big enough for the packet and payload
-	 * (checked in order to avoid reading bad memory)
-	 */
-	if (!packet || len < sizeof(struct hss_packet_hdr) ||
-		len > (sizeof(struct hss_packet_hdr)+packet->hdr.payload_len)) {
+	struct hss_packet *packet;
+	struct hss_proxy_inst *proxy_inst;
+	/* Our `buf` param may be replaced by a persisent buffer so an original is
+	 * useful in many-HSS to one-USB scenarios where the original buffer is
+	 * required*/
+	char *param_buf = buf;
+
+	if (!buf)
 		return;
+
+	proxy_inst = proxy_context;
+
+	/* If in a carryover situation, copy the incoming data and replace `buf` with the persistent buffer */
+	if (proxy_inst->carry_pkt) {
+		hss_proxy_carry(proxy_inst, buf, len);
+
+		/* Replace the incoming buffer with the persistent values and continue as normal */
+		buf = proxy_inst->carry_pkt;
+		len  = proxy_inst->carry_pkt_len;
 	}
 
-	/* Incoming command is either a close notificaiton or ACK */
+	/* Make sure at least a header has come in before continuing */
+	if(len < HSS_HDR_LEN) {
+		/* Start a carryover if not already in one */
+		if (!proxy_inst->carry_pkt) {
+			hss_proxy_carry(proxy_inst, buf, len);
+		}
+		goto out;
+	}
+
+	packet = kmalloc(sizeof(struct hss_packet), GFP_ATOMIC);
+	hss_packet_from_buf(packet, buf, HSS_COPY_HDR);
+
+	/* Make sure the entire packet has come through */
+	if(len < HSS_HDR_LEN + packet->hdr.payload_len) {
+		/* Start a carryover if not already in one */
+		if (!proxy_inst->carry_pkt) {
+			hss_proxy_carry(proxy_inst, buf, len);
+		}
+		goto out_free;
+	}
+
 	switch (packet->hdr.opcode) {
 	case HSS_OP_TRANSMIT:
-		hss_proxy_recv_transmit(packet, proxy_context);
+		/* Reallocate the header to a buffer with enough space to copy the payload */
+		packet = krealloc(packet,
+			HSS_HDR_LEN + packet->hdr.payload_len, GFP_ATOMIC);
+		memcpy(packet->hss_payload_none, buf + HSS_HDR_LEN, packet->hdr.payload_len);
+
+		/* Shedule handling of this operation */
+		if (hss_proxy_recv_transmit(packet, proxy_context) == 1)
+			goto out_free;
 		break;
 	default:
 		pr_err("%s got opcode %d", __func__, packet->hdr.opcode);
+		goto out_free;
 		break;
 	}
+
+	/* If there is leftover data at the end of the buffer it is another HSS packet */
+	/* TODO This copy is dangerous if the caller is inconsistent with the size of buf in between calls.
+	 * This is what ring buffers are great for */
+	len -= HSS_HDR_LEN + packet->hdr.payload_len;
+	if (len) {
+		memcpy(param_buf, buf + HSS_HDR_LEN + packet->hdr.payload_len, len);
+		hss_proxy_end_carry(proxy_inst);
+		hss_proxy_rcv_data(param_buf, len, proxy_context);
+	} else {
+		/* If this is a terminal condition stop any carry over before exiting */
+		hss_proxy_end_carry(proxy_inst);
+	}
+
+	goto out;
+out_free:
+	kfree(packet);
+out:
+	return;
 }
 EXPORT_SYMBOL_GPL(hss_proxy_rcv_data);
