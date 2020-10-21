@@ -11,8 +11,8 @@
 #define USB_SUBCLASS_HSS_XAPTUM   0xab
 
 struct usb_hss;
-int hss_cmd_out(void *context, void *msg, int msg_len);
-int hss_bulk_out(void *context, void *msg, int msg_len);
+int hss_cmd_out(void *context, char *msg, int msg_len);
+int hss_bulk_out(void *context, char *msg, int msg_len);
 void *hss_get_ack_buf(struct usb_hss *dev);
 
 

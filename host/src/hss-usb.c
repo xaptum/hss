@@ -45,9 +45,9 @@ struct usb_hss {
 	int			cmd_interval;
 	struct kref		kref;
 	char			*cmd_in_buffer;
-	void			*cmd_out_buffer;
+	char			*cmd_out_buffer;
 	char			*bulk_in_buffer;
-	void			*bulk_out_buffer;
+	char			*bulk_out_buffer;
 	struct urb		*cmd_in_urb;
 	struct urb		*cmd_out_urb;
 	struct urb		*bulk_in_urb;
@@ -239,7 +239,7 @@ static void hss_read_cmd_callback(struct urb *urb)
 	struct usb_hss *dev = urb->context;
 
 	if (urb->status == 0) {
-		hss_proxy_rcv_cmd((char *)dev->cmd_in_buffer,
+		hss_proxy_rcv_cmd(dev->cmd_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 	}
@@ -252,7 +252,7 @@ static void hss_read_bulk_callback(struct urb *urb)
 	switch (urb->status) {
 	/* Success */
 	case 0:
-		hss_proxy_rcv_data((char *)dev->bulk_in_buffer,
+		hss_proxy_rcv_data(dev->bulk_in_buffer,
 			urb->actual_length, dev->proxy_context);
 		usb_submit_urb(urb, GFP_KERNEL);
 		break;
@@ -321,7 +321,7 @@ static void hss_cmd_out_callback(struct urb *urb)
 	up(&dev->int_out_sem);
 }
 
-int hss_cmd_out(void *context, void *msg, int msg_len)
+int hss_cmd_out(void *context, char *msg, int msg_len)
 {
 	int ret;
 	struct usb_hss *dev = context;
@@ -342,7 +342,7 @@ int hss_cmd_out(void *context, void *msg, int msg_len)
 	return ret;
 }
 
-int hss_bulk_out(void *context, void *msg, int msg_len)
+int hss_bulk_out(void *context, char *msg, int msg_len)
 {
 	int ret = -1;
 	struct usb_hss *dev = context;
@@ -356,7 +356,7 @@ int hss_bulk_out(void *context, void *msg, int msg_len)
 		/* Send as much of the remaining message as possible */
 		int seg_len = min(msg_len-sent_len, XAPRC00X_BULK_OUT_BUF_SIZE);
 
-		memcpy(dev->bulk_out_buffer, ((char*)msg + sent_len), seg_len);
+		memcpy(dev->bulk_out_buffer, (msg + sent_len), seg_len);
 
 		/* Send a bulk message to the device and wait for a reply */
 		ret = usb_bulk_msg(

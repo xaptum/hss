@@ -313,7 +313,7 @@ static void hss_send_close(
  * actual payload data starting at offset sizeof(struct hss_packet_hdr)
  */
 static void hss_send_transmit(
-	struct hss_packet *msg,
+	char *msg,
 	int payload_len,
 	int sock_id,
 	void *usb_context)
@@ -323,7 +323,7 @@ static void hss_send_transmit(
 	int packet_len = payload_len + HSS_FIXED_LEN_TRANSMIT;
 
 	hss_packet_fill_transmit(&pkt, sock_id, NULL, payload_len, atomic_inc_return(&g_msg_id));
-	hss_packet_to_buf(&pkt, (char *)msg, HSS_COPY_FIELDS);
+	hss_packet_to_buf(&pkt, msg, HSS_COPY_FIELDS);
 
 	bulk_ret = hss_bulk_out(usb_context, msg, packet_len);
 
@@ -339,7 +339,7 @@ int hss_proxy_listen_socket(void *param)
 	struct listen_data *ld = param;
 	int max_msg_len = XAPRC00X_BULK_OUT_BUF_SIZE;
 	int max_read_len = max_msg_len - HSS_FIXED_LEN_TRANSMIT;
-	struct hss_packet *msg = kzalloc(max_msg_len, GFP_KERNEL);
+	char *msg = kzalloc(max_msg_len, GFP_KERNEL);
 	int sock_read_len;
 	void *usb_context = ld->context->usb_context;
 
@@ -348,7 +348,7 @@ int hss_proxy_listen_socket(void *param)
 		 * to the location it will be on the outgoing packet. */
 		sock_read_len = hss_socket_read(
 			ld->sock_id,
-			(char *)msg + HSS_FIXED_LEN_TRANSMIT,
+			msg + HSS_FIXED_LEN_TRANSMIT,
 			max_read_len,
 			0,
 			ld->context->socket_table);
