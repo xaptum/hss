@@ -1,0 +1,16 @@
+Source: hss
+Section: admin
+Priority: optional
+Maintainer: Daniel Berliner <daniel.berliner@xaptum.com>
+Build-Depends: debhelper (>= 10), dkms
+Standards-Version: 3.9.8
+Homepage: https://github.com/xaptum/hss
+
+Package: hss-dkms
+Architecture: all
+Depends: dkms, ${misc:Depends}
+Description: Host side interface to allow HSS enabled USB devices to
+ over the hosts network.
+ .
+ This package installs the driver source files and configures DKMS
+ to compile the driver for the currently running kernel.
